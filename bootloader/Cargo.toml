@@ -1,0 +1,15 @@
+# cargo-features = ["per-package-target"]
+
+[package]
+name = "bootloader"
+version = "0.1.0"
+edition = "2018"
+# forced-target = "x86_64-craftyos-uefi.json"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+uefi = "0.11.0"
+uefi-services = "0.8"
+rlibc = "1"
+log = { version = "*", default-features = false }
