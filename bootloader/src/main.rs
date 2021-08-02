@@ -148,9 +148,10 @@ fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
 
     // Create an unsafe pointer to the kernel entry point in memory and execute it.
     let ptr = kernel_elf.header.pt2.entry_point() as *const ();
-    let kernel_entry: fn() -> u8 = unsafe { core::mem::transmute(ptr) };
+    let kernel_entry: fn(u8, u8) -> u8 = unsafe { core::mem::transmute(ptr) };
 
-    info!("Kernel said: {}", kernel_entry());
+    // Test Math
+    info!("Kernel said: 5 * 3 = {}", kernel_entry(5, 3));
 
     // Infinite loop
     loop {

@@ -9,7 +9,8 @@ fn panic(_info: &PanicInfo) -> ! {
 }
 
 #[no_mangle]
-pub fn _start() -> u8 {
-    // Return a test value
-    return 42;
+// Use extern win64 so params come through correctly. Thanks Microsoft
+pub extern "win64" fn _start(a: u8, b: u8) -> u8 {
+    // Test math
+    return a * b;
 }
