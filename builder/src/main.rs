@@ -3,8 +3,8 @@ extern crate fatfs;
 extern crate fscommon;
 
 use anyhow::{anyhow, Context, Result};
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, BufReader};
 use std::process::{Command, Stdio};
 
 use cargo_metadata::Message;
@@ -28,9 +28,11 @@ fn main() -> anyhow::Result<()> {
     )?;
     println!("Formated");
 
-    let options = FsOptions::new().update_accessed_date(true);
-    let partition = FileSystem::new(BufStream::new(&crafty_img), options)?;
-
+    let partition = FileSystem::new(
+        BufStream::new(&crafty_img),
+        FsOptions::new().update_accessed_date(true),
+    )?;
+    let root = partition.root_dir();
     // let testdir = fs.root_dir().create_dir("test")?;
 
     // let mut file = partition.root_dir().create_file("hello.txt")?;
@@ -48,10 +50,10 @@ fn main() -> anyhow::Result<()> {
     //     .spawn()
     //     .unwrap();
 
-    partition.root_dir().create_dir("/EFI")?;
-    partition.root_dir().create_dir("/EFI/BOOT")?;
+    root.create_dir("/EFI")?;
+    root.create_dir("/EFI/BOOT")?;
 
-    let names = ["../bootloader"];
+    let names = ["../bootloader", "../kernel"];
 
     for name in names {
         let mut command = Command::new("cargo")
@@ -61,27 +63,24 @@ fn main() -> anyhow::Result<()> {
             .spawn()
             .unwrap();
 
-        let reader = std::io::BufReader::new(command.stdout.take().unwrap());
-        for message in cargo_metadata::Message::parse_stream(reader) {
+        let reader = BufReader::new(command.stdout.take().unwrap());
+        for message in Message::parse_stream(reader) {
             match message.unwrap() {
                 Message::CompilerMessage(msg) => {
                     // Pass messages straight back
                     println!("{:?}", msg);
                 }
-                Message::CompilerArtifact(artifact) => {
-                    match artifact.target.name.as_str() {
-                        "kernel" => println!("Kernel!"),
-                        "bootloader" => {
-                            let mut file =
-                                partition.root_dir().create_file("/EFI/BOOT/BootX64.efi")?;
-                            io::copy(
-                                &mut fs::File::open(&artifact.executable.unwrap())?,
-                                &mut file,
-                            )?;
-                        }
-                        _ => (),
+                Message::CompilerArtifact(artifact) => match artifact.target.name.as_str() {
+                    "kernel" => {
+                        let mut file = partition.root_dir().create_file("/kernel.elf")?;
+                        io::copy(&mut File::open(&artifact.executable.unwrap())?, &mut file)?;
                     }
-                }
+                    "bootloader" => {
+                        let mut file = partition.root_dir().create_file("/EFI/BOOT/BootX64.efi")?;
+                        io::copy(&mut File::open(&artifact.executable.unwrap())?, &mut file)?;
+                    }
+                    _ => (),
+                },
                 // We don't care about these
                 // Message::BuildScriptExecuted(script) => {
                 //     println!("{:?}", script);
@@ -97,14 +96,19 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    let mut file = partition.root_dir().create_file("/startup.nsh")?;
+    io::copy(&mut File::open("startup.nsh")?, &mut file)?;
+
     // Launch qemu
     let _command = Command::new("qemu-system-x86_64")
         .args([
             "-nodefaults",
             "-vga",
             "qxl",
-            "-machine",
-            "q35,accel=kvm:tcg",
+            "-cpu",
+            "qemu64",
+            "-m",
+            "128M",
             "-drive",
             "if=pflash,format=raw,file=../OVMF/OVMF-pure-efi.fd",
             "-drive",

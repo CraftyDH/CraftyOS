@@ -9,7 +9,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uefi = "0.11.0"
+uefi = { version = "0.11", features = ['exts'] }
 uefi-services = "0.8"
 rlibc = "1"
-log = { version = "*", default-features = false }
+log = { version = "0.4", default-features = false }
+xmas-elf = "0.8"
