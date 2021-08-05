@@ -14,6 +14,53 @@ extern crate xmas_elf;
 
 use uefi::prelude::*;
 use uefi::proto::media::file::*;
+use uefi::proto::console::gop::{GraphicsOutput, Mode};
+
+use alloc::vec::Vec;
+
+fn initialize_gop(bt: &uefi::table::boot::BootServices) -> &mut GraphicsOutput {    
+    let gop = match bt.locate_protocol::<GraphicsOutput>() {
+        Ok(status) => unsafe {&mut *status.unwrap().get() },
+        Err(e) => { 
+            error!("Cannot locate GOP: {:?}", e);
+            loop {}
+        }
+    };
+
+    // The max resolution to choose 
+    let maxx = 1200;
+    let maxy = 1000;
+
+    let mut modes: Vec<Mode> = Vec::new();
+
+    for mode in gop.modes() {
+        let mode = mode.unwrap();
+        let info = mode.info();
+        let (x, y) = info.resolution();
+        if x <= maxx && y <= maxy {
+            modes.push(mode)
+        }
+    }
+
+    if modes.len() >= 1 {
+        let mode = modes.last().unwrap();
+        info!("{:?}", mode.info());
+
+        let gop2 = match bt.locate_protocol::<GraphicsOutput>() {
+            Ok(status) => unsafe {&mut *status.unwrap().get() },
+            Err(e) => { 
+                error!("Cannot locate GOP: {:?}", e);
+                loop {}
+            }
+        };
+
+        gop2.set_mode(&mode).unwrap().unwrap();
+    }
+
+
+    info!("GOP found");
+    gop
+}
 
 #[entry]
 fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
@@ -146,12 +193,12 @@ fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
         }
     }
 
-    // Create an unsafe pointer to the kernel entry point in memory and execute it.
-    let ptr = kernel_elf.header.pt2.entry_point() as *const ();
-    let kernel_entry: fn(u8, u8) -> u8 = unsafe { core::mem::transmute(ptr) };
+    let gop = initialize_gop(boot_services);
 
-    // Test Math
-    info!("Kernel said: 5 * 3 = {}", kernel_entry(5, 3));
+    let ptr = kernel_elf.header.pt2.entry_point() as *const ();
+    let kernel_entry: fn(&mut GraphicsOutput) = unsafe { core::mem::transmute(ptr) };
+
+    kernel_entry(gop);
 
     // Infinite loop
     loop {
