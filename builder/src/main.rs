@@ -8,7 +8,7 @@ use std::fs::{self, File};
 use std::io::{self, BufReader};
 use std::process::{Command, Stdio};
 
-use cargo_metadata::{Message, camino};
+use cargo_metadata::{camino, Message};
 
 use fatfs::{format_volume, FileSystem, FormatVolumeOptions, FsOptions, StdIoWrapper};
 use fscommon::BufStream;
@@ -53,6 +53,9 @@ fn main() -> Result<()> {
 
     let mut file = root.create_file("/startup.nsh")?;
     io::copy(&mut File::open("resources/startup.nsh")?, &mut file)?;
+
+    let mut file = root.create_file("/zap-light16.psf")?;
+    io::copy(&mut File::open("resources/zap-light16.psf")?, &mut file)?;
 
     // Launch qemu
     let _command = Command::new("qemu-system-x86_64")
