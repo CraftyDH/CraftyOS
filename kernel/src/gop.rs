@@ -1,11 +1,11 @@
 use core::fmt::Write;
-use uefi::proto::console::gop::*;
+use core::sync::atomic::{AtomicPtr, AtomicU32, AtomicUsize};
+use lazy_static::lazy_static;
 
 fn put_char(
-    fb: &mut FrameBuffer,
-    fbinfo: ModeInfo,
+    gop: &mut Gop,
     font: &super::PSF1Font,
-    colour: u32,
+    colour: &mut AtomicU32,
     chr: char,
     xoff: usize,
     yoff: usize,
@@ -19,8 +19,13 @@ fn put_char(
         for x in xoff..(xoff + 8) {
             // Fancy math to check if bit is on.
             if (glyph & (0b10_000_000 >> (x - xoff))) > 0 {
-                let loc = ((x as usize) + (y as usize * fbinfo.stride())) * 4;
-                unsafe { fb.write_value(loc, colour) }
+                let loc = ((x as usize) + (y as usize * gop.stride)) * 4;
+                unsafe {
+                    core::ptr::write_volatile(
+                        gop.buffer.get_mut().add(loc) as *mut u32,
+                        *colour.get_mut(),
+                    )
+                }
             }
         }
         addr += 1;
@@ -28,54 +33,46 @@ fn put_char(
 }
 
 pub struct Pos {
-    pub x: usize,
-    pub y: usize,
+    pub x: AtomicUsize,
+    pub y: AtomicUsize,
 }
+
 pub struct Gop {
-    pub buffer: &'static mut FrameBuffer<'static>,
-    pub info: ModeInfo,
-    pub font: super::PSF1Font<'static>,
+    pub buffer: AtomicPtr<u8>,
+    pub buffer_size: usize,
+    pub horizonal: usize,
+    pub vertical: usize,
+    pub stride: usize,
 }
 
 pub struct Writer {
-    pos: Pos,
-    gop: Option<Gop>,
-    colour: u32,
+    pub pos: Pos,
+    pub gop: Gop,
+    pub font: super::PSF1Font<'static>,
+    pub colour: AtomicU32,
 }
 
-unsafe impl Send for Writer {}
-unsafe impl Send for Gop {}
-
 impl Writer {
-    pub fn set_gop(&mut self, gop: Gop) {
-        self.gop = Some(gop);
+    pub fn set_gop(&mut self, gop: Gop, font: super::PSF1Font<'static>) {
+        self.gop = gop;
+        self.font = font;
     }
-    pub fn set_colour(&mut self, colour: u32) -> &mut Writer {
-        self.colour = colour;
-        return self;
+    pub fn set_colour(&mut self, colour: u32) {
+        // Get pointer to then change colour
+        *self.colour.get_mut() = colour;
     }
 
     pub fn write_byte(&mut self, chr: char) {
-        let gop = match &mut self.gop {
-            Some(gop) => gop,
-            None => return,
-        };
+        let mut x = self.pos.x.get_mut();
+        let mut y = self.pos.y.get_mut();
         match chr {
             '\n' => {
-                self.pos.x = 0;
-                self.pos.y += 16;
+                *x = 0;
+                *y += 16;
             }
             chr => {
-                put_char(
-                    gop.buffer,
-                    gop.info,
-                    &gop.font,
-                    self.colour,
-                    chr,
-                    self.pos.x,
-                    self.pos.y,
-                );
-                self.pos.x += 8
+                put_char(&mut self.gop, &self.font, &mut self.colour, chr, *x, *y);
+                *x += 8
             }
         }
         self.check_bounds();
@@ -88,30 +85,28 @@ impl Writer {
     }
 
     fn check_bounds(&mut self) {
-        let gop = match &mut self.gop {
-            Some(gop) => gop,
-            None => return,
-        };
+        let mut x = self.pos.x.get_mut();
+        let mut y = self.pos.y.get_mut();
+
         // Check if next character will excede width
-        let res = gop.info.resolution();
-        if self.pos.x + 8 > res.0 {
-            self.pos.x = 0;
-            self.pos.y += 16;
+        let res = (self.gop.horizonal, self.gop.vertical);
+        if *x + 8 > res.0 {
+            *x = 0;
+            *y += 16;
         }
         // Check if next line will excede height
-        if self.pos.y + 16 > res.1 {
+        if *y + 16 > res.1 {
             let start_offset = (16 * 4 * res.0) as isize;
             let size = ((res.0 * res.1) - res.0) * 4;
+
+            let buf = self.gop.buffer.get_mut();
+
             unsafe {
                 // Copy memory from bottom to top (aka scroll)
-                core::ptr::copy(
-                    gop.buffer.as_mut_ptr().offset(start_offset),
-                    gop.buffer.as_mut_ptr(),
-                    size,
-                );
+                core::ptr::copy(buf.offset(start_offset), *buf, size);
             }
-            self.pos.y -= 16;
-            self.pos.x = 0
+            *y -= 16;
+            *x = 0
         }
     }
 }
@@ -123,14 +118,23 @@ impl core::fmt::Write for Writer {
     }
 }
 
-use lazy_static::lazy_static;
 use spin::Mutex;
 
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        pos: Pos { x: 0, y: 0 },
-        gop: None,
-        colour: 0xFF_FF_FF
+        pos: Pos {
+            x: AtomicUsize::new(0),
+            y: AtomicUsize::new(0),
+        },
+        gop: Gop {
+            buffer: AtomicPtr::default(),
+            buffer_size: 0,
+            horizonal: 0,
+            vertical: 0,
+            stride: 0,
+        },
+        font: super::PSF1_FONT_NULL,
+        colour: AtomicU32::new(0xFF_FF_FF),
     });
 }
 
@@ -156,5 +160,6 @@ use core::fmt::Arguments;
 
 #[doc(hidden)]
 pub fn _print(args: Arguments) {
+    // let mut write = &mut *;
     WRITER.lock().write_fmt(args);
 }
