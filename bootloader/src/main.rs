@@ -16,6 +16,7 @@ mod gop;
 mod kernel;
 mod psf1;
 
+use alloc::vec::Vec;
 use core::sync::atomic::AtomicPtr;
 use uefi::prelude::*;
 use uefi::proto::console::gop::*;
@@ -76,11 +77,24 @@ fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     let font = psf1::load_psf1_font(&mut root, "zap-light16.psf");
     info!("Loaded font");
 
+    // Get Memory Map
+    let mut memory_map_buffer = vec![0u8; boot_services.memory_map_size() + 1024];
+    let memory_map: Vec<uefi::table::boot::MemoryDescriptor> = boot_services
+        .memory_map(&mut memory_map_buffer)
+        .unwrap()
+        .unwrap()
+        .1
+        .copied()
+        .collect();
+
+    info!("Retrieved Memory Map");
+    // info!("{:?}", memory_map_buffer);
+
     // TODO: Why do I have to clone the table?
     let sys = unsafe { system_table.unsafe_clone() };
     // Get a buffer the size of the runtimeservices size + a buffer
     let mut mmap = vec![0u8; boot_services.memory_map_size() + 1024];
-    let runtime_table = match sys.exit_boot_services(image_handle, &mut mmap) {
+    let _runtime_table = match sys.exit_boot_services(image_handle, &mut mmap) {
         Ok(table) => table.unwrap().0,
         Err(e) => {
             error!("Error: {:?}", e);
@@ -89,9 +103,9 @@ fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
     };
 
     //* Cannot use boot services now
-    let kernel_entry: fn(&SystemTable<Runtime>, Gop, psf1::PSF1Font) -> ! =
+    let kernel_entry: fn(Gop, psf1::PSF1Font, Vec<uefi::table::boot::MemoryDescriptor>) -> ! =
         unsafe { core::mem::transmute(entry_point as *const ()) };
     //* Point of no return
-    kernel_entry(&runtime_table, gopstruct, font);
+    kernel_entry(gopstruct, font, memory_map);
     // Status::SUCCESS
 }

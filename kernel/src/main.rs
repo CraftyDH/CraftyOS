@@ -6,7 +6,10 @@ use core::panic::PanicInfo;
 use uefi::proto::console::gop::*;
 use uefi::table::{Runtime, SystemTable};
 
+mod alloc;
+mod bitmap;
 mod gop;
+mod memory;
 
 const PSF1_MAGIC: [u8; 2] = [0x36, 0x04];
 
@@ -47,21 +50,43 @@ fn panic(info: &PanicInfo) -> ! {
 #[no_mangle]
 // Use extern win64 so params come through correctly. Thanks Microsoft
 pub extern "win64" fn _start(
-    runtime_services: SystemTable<Runtime>,
     gop: gop::Gop,
     font: PSF1Font<'static>,
+    mmap: &mut [uefi::table::boot::MemoryDescriptor],
 ) -> ! {
     gop::WRITER.lock().set_gop(gop, font);
 
-    // Print colour and scroll test
-    for _ in 0..255 {
-        colour!(0xFF_00_00);
-        println!("Red");
-        colour!(0x00_FF_00);
-        println!("    Green");
-        colour!(0x00_00_FF);
-        println!("          Blue");
+    // // Print colour and scroll test
+    // for _ in 0..255 {
+    //     colour!(0xFF_00_00);
+    //     println!("Red");
+    //     colour!(0x00_FF_00);
+    //     println!("    Green");
+    //     colour!(0x00_00_FF);
+    //     println!("          Blue");
+    // }
+
+    // colour!(0xFFFFFF);
+    // for entry in mmap {
+    //     println!("{:?}", entry);
+    // }
+
+    let mut allocator = alloc::PageFramAllocator::new(mmap);
+
+    println!("Total size: {}", memory::get_memory_size(mmap));
+
+    println!("Free RAM: {}KB", allocator.get_free_ram() / 1024);
+    println!("Used RAM: {}KB", allocator.get_used_ram() / 1024);
+    println!("Reserved RAM: {}KB", allocator.get_reserved_ram() / 1024);
+
+    for num in 0..20 {
+        let addr = allocator.request_page();
+        print!("{:?} : ", addr);
     }
+
+    println!("Free RAM: {}KB", allocator.get_free_ram() / 1024);
+    println!("Used RAM: {}KB", allocator.get_used_ram() / 1024);
+
     loop {
         // Halt processor cause why waste processor cycles
         unsafe {
