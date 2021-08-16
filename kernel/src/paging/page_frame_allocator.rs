@@ -2,17 +2,18 @@
 
 use crate::bitmap::Bitmap;
 
-pub struct PageFramAllocator {
+pub struct PageFrameAllocator {
     free_memory: u64,
     reserved_memory: u64,
     used_memory: u64,
     page_bitmap: Bitmap,
+    page_bitmap_index: usize,
 }
 
-impl PageFramAllocator {
-    pub fn new(mmap: &mut [uefi::table::boot::MemoryDescriptor]) -> PageFramAllocator {
-        let (free_segment, free_segment_size) = PageFramAllocator::get_largest_section(mmap);
-        let memory_size = super::memory::get_memory_size(mmap);
+impl PageFrameAllocator {
+    pub fn new(mmap: &mut [uefi::table::boot::MemoryDescriptor]) -> PageFrameAllocator {
+        let (free_segment, free_segment_size) = PageFrameAllocator::get_largest_section(mmap);
+        let memory_size = crate::memory::get_memory_size(mmap);
         let bitmap_size = memory_size / 4096 / 8 + 1;
 
         // Init bitmap
@@ -21,11 +22,12 @@ impl PageFramAllocator {
         // Lock pages of bitmap
         // Reserve pages of unusable/reserved memory
 
-        let mut alloc = PageFramAllocator {
+        let mut alloc = PageFrameAllocator {
             free_memory: memory_size,
             reserved_memory: 0,
             used_memory: 0,
             page_bitmap: bitmap,
+            page_bitmap_index: 0,
         };
 
         alloc.lock_pages(alloc.page_bitmap.buffer, bitmap_size / 4096 + 1);
@@ -53,19 +55,19 @@ impl PageFramAllocator {
         return (free_segment, free_segment_size);
     }
 
-    pub fn request_page(&mut self) -> Result<*mut u8, &str> {
-        for page in 0..self.page_bitmap.size {
+    pub fn request_page(&mut self) -> *mut u8 {
+        for page in self.page_bitmap_index..(self.page_bitmap.size * 8) {
             if self.page_bitmap[page] == true {
                 continue;
             }
+            self.page_bitmap_index = page;
             let ptr = (page * 4096) as *mut u8;
-
             self.lock_page(ptr);
-            return Ok(ptr);
+            return ptr;
         }
 
         //? SWAP
-        return Err("No page found");
+        return core::ptr::null_mut();
     }
 
     pub fn get_free_ram(&self) -> u64 {
@@ -80,15 +82,20 @@ impl PageFramAllocator {
     }
 }
 
-impl PageFramAllocator {
+impl PageFrameAllocator {
     pub fn free_page(&mut self, addr: *mut u8) {
-        let index = (addr as u64) / 4096;
-        if self.page_bitmap[index as usize] == false {
+        let index = (addr as u64 / 4096) as usize;
+        if self.page_bitmap[index] == false {
             return;
         };
-        self.page_bitmap.set(index, false);
-        self.free_memory += 4096;
-        self.used_memory -= 4096;
+        if self.page_bitmap.set(index as u64, false) {
+            self.free_memory += 4096;
+            self.used_memory -= 4096;
+
+            if self.page_bitmap_index > index {
+                self.page_bitmap_index = index
+            }
+        }
     }
 
     pub fn free_pages(&mut self, addr: *mut u8, page_count: u64) {
@@ -103,9 +110,10 @@ impl PageFramAllocator {
         if self.page_bitmap[index as usize] == true {
             return;
         };
-        self.page_bitmap.set(index, true);
-        self.free_memory -= 4096;
-        self.used_memory += 4096;
+        if self.page_bitmap.set(index, true) {
+            self.free_memory -= 4096;
+            self.used_memory += 4096;
+        }
     }
 
     pub fn lock_pages(&mut self, addr: *mut u8, page_count: u64) {
@@ -116,15 +124,19 @@ impl PageFramAllocator {
     }
 }
 
-impl PageFramAllocator {
+impl PageFrameAllocator {
     pub fn unreserve_page(&mut self, addr: *mut u8) {
-        let index = (addr as u64) / 4096;
-        if self.page_bitmap[index as usize] == false {
+        let index = (addr as u64 / 4096) as usize;
+        if self.page_bitmap[index] == false {
             return;
         };
-        self.page_bitmap.set(index, false);
-        self.free_memory += 4096;
-        self.reserved_memory -= 4096;
+        if self.page_bitmap.set(index as u64, false) {
+            self.free_memory += 4096;
+            self.reserved_memory -= 4096;
+            if self.page_bitmap_index > index {
+                self.page_bitmap_index = index
+            }
+        }
     }
 
     pub fn unreserve_pages(&mut self, addr: *mut u8, page_count: u64) {
@@ -139,9 +151,10 @@ impl PageFramAllocator {
         if self.page_bitmap[index as usize] == true {
             return;
         };
-        self.page_bitmap.set(index, true);
-        self.free_memory -= 4096;
-        self.reserved_memory += 4096;
+        if self.page_bitmap.set(index, true) {
+            self.free_memory -= 4096;
+            self.reserved_memory += 4096;
+        }
     }
 
     pub fn reserve_pages(&mut self, addr: *mut u8, page_count: u64) {

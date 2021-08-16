@@ -1,15 +1,17 @@
 #![no_std]
 #![no_main]
 #![feature(asm)]
-
 use core::panic::PanicInfo;
 use uefi::proto::console::gop::*;
 use uefi::table::{Runtime, SystemTable};
 
-mod alloc;
 mod bitmap;
+#[macro_use]
 mod gop;
 mod memory;
+mod paging;
+
+// extern crate alloc;
 
 const PSF1_MAGIC: [u8; 2] = [0x36, 0x04];
 
@@ -47,45 +49,75 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
+use paging::page_frame_allocator::PageFrameAllocator;
+
 #[no_mangle]
 // Use extern win64 so params come through correctly. Thanks Microsoft
 pub extern "win64" fn _start(
-    gop: gop::Gop,
+    mut gop: gop::Gop,
     font: PSF1Font<'static>,
-    mmap: &mut [uefi::table::boot::MemoryDescriptor],
+    mut mmap: &mut [uefi::table::boot::MemoryDescriptor],
 ) -> ! {
+    let mut GlobalAllocator = PageFrameAllocator::new(&mut mmap);
+
+    let base = *gop.buffer.get_mut() as u64;
+    let size = gop.buffer_size as u64;
+    // Reserve GOP framebuffer
+    GlobalAllocator.reserve_pages((base - 4096 * 10) as *mut u8, (size / 4096) + 2);
+
+    // Reserve Stuff
+    GlobalAllocator.reserve_pages(0 as *mut u8, 10);
+    unsafe {
+        // Clear screen
+        core::ptr::write_bytes::<u8>(*gop.buffer.get_mut() as *mut u8, 0, gop.buffer_size);
+    }
     gop::WRITER.lock().set_gop(gop, font);
 
-    // // Print colour and scroll test
-    // for _ in 0..255 {
-    //     colour!(0xFF_00_00);
-    //     println!("Red");
-    //     colour!(0x00_FF_00);
-    //     println!("    Green");
-    //     colour!(0x00_00_FF);
-    //     println!("          Blue");
-    // }
+    // println!("{:?}", mmap);
 
-    // colour!(0xFFFFFF);
-    // for entry in mmap {
-    //     println!("{:?}", entry);
-    // }
+    // Init Paging
+    unsafe {
+        // Reserve Pages
+        // TODO: Reserve Kernel
 
-    let mut allocator = alloc::PageFramAllocator::new(mmap);
+        use paging::page_table_manager::PageTableManager;
 
-    println!("Total size: {}", memory::get_memory_size(mmap));
+        let mut pml4 = GlobalAllocator.request_page() as *mut paging::PageTable;
 
-    println!("Free RAM: {}KB", allocator.get_free_ram() / 1024);
-    println!("Used RAM: {}KB", allocator.get_used_ram() / 1024);
-    println!("Reserved RAM: {}KB", allocator.get_reserved_ram() / 1024);
+        println!("pml4 {:?}", pml4);
+        // Clear plm4
+        core::ptr::write_bytes::<u8>(pml4 as *mut u8, 0, 0x1000);
 
-    for num in 0..20 {
-        let addr = allocator.request_page();
-        print!("{:?} : ", addr);
+        let mut page_table_manager = PageTableManager::new(pml4);
+
+        println!("Mem {}", memory::get_memory_size(&mut mmap));
+
+        // for t in (0..(memory::get_memory_size(&mut mmap))).step_by(0x1000) {
+        for t in (0..memory::get_memory_size(&mut mmap)).step_by(0x1000) {
+            page_table_manager.map_memory(&mut GlobalAllocator, t as *const u8, t as *const u8)
+        }
+
+        println!("T");
+
+        for t in (base..(base + size)).step_by(0x1000) {
+            page_table_manager.map_memory(&mut GlobalAllocator, t as *const u8, t as *const u8)
+        }
+
+        // Activate new page map
+        // TODO: Make it not crash
+        asm!("mov cr3, {}", inout(reg) pml4);
+
+        // * Test new page map
+        println!("Didn't crash");
+
+        page_table_manager.map_memory(
+            &mut GlobalAllocator,
+            0x6_000_000 as *const u8,
+            0x5_000_000 as *const u8,
+        );
+        core::ptr::write(0x5_000_000 as *mut u8, 27);
+        println!("Number {}", core::ptr::read(0x6_000_000 as *mut u8));
     }
-
-    println!("Free RAM: {}KB", allocator.get_free_ram() / 1024);
-    println!("Used RAM: {}KB", allocator.get_used_ram() / 1024);
 
     loop {
         // Halt processor cause why waste processor cycles

@@ -55,6 +55,7 @@ pub struct Writer {
 impl Writer {
     pub fn set_gop(&mut self, gop: Gop, font: super::PSF1Font<'static>) {
         self.gop = gop;
+
         self.font = font;
     }
     pub fn set_colour(&mut self, colour: u32) {

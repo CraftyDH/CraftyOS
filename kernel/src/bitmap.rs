@@ -49,7 +49,10 @@ impl Bitmap {
             buffer: buf_ptr,
         }
     }
-    pub fn set(&mut self, index: u64, value: bool) {
+    pub fn set(&mut self, index: u64, value: bool) -> bool {
+        if index as usize > self.size * 8 {
+            return false;
+        }
         let byte_index = (index / 8) as isize;
         let bit_index = BIT_INDEXER >> (index % 8);
         let mut byte = unsafe { core::ptr::read(self.buffer.offset(byte_index)) };
@@ -58,6 +61,8 @@ impl Bitmap {
             byte |= bit_index as u8;
         }
         unsafe { core::ptr::write(self.buffer.offset(byte_index), byte) };
+
+        return true;
     }
 }
 
@@ -65,6 +70,10 @@ impl core::ops::Index<usize> for Bitmap {
     type Output = bool;
 
     fn index(&self, index: usize) -> &bool {
+        if index > self.size * 8 {
+            return &false;
+        }
+
         let byte_index = (index / 8) as isize;
         let bit_index = BIT_INDEXER >> (index % 8);
         let mut byte = unsafe { core::ptr::read(self.buffer.offset(byte_index)) };

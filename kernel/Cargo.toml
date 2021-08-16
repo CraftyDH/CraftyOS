@@ -8,6 +8,7 @@ edition = "2018"
 [dependencies]
 uefi = "0.11"
 spin = "0.9"
+x86_64 = "*"
 
 [dependencies.lazy_static]
 version = "1.4"

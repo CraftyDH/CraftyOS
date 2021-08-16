@@ -10,7 +10,6 @@ extern crate log;
 extern crate alloc;
 extern crate uefi;
 extern crate uefi_services;
-extern crate xmas_elf;
 
 mod gop;
 mod kernel;
@@ -71,6 +70,8 @@ fn uefi_start(image_handle: Handle, system_table: SystemTable<Boot>) -> Status {
         vertical,
         stride: gopinfo.stride(),
     };
+
+    info!("Entry {}", entry_point);
 
     info!("Loaded gop");
 
