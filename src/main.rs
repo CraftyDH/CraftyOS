@@ -10,7 +10,7 @@ mod vga_buffer;
 extern crate lazy_static;
 
 // Colours
-use vga_buffer::{Colour, Colour::*, ColourCode};
+use vga_buffer::colour::{Colour, Colour::*, ColourCode};
 
 //* Panic Handler
 use core::panic::PanicInfo;
