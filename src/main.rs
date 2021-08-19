@@ -1,25 +1,30 @@
 // Features
 #![no_std] // We don't want the standard library
-#![no_main] // We have our own "_start" function
 #![feature(asm)] // We would like to use inline assembly
+#![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crafty_os::test::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-//* Modules
-mod vga_buffer;
-
-#[macro_use] // Import lazy_static! macro globally
-extern crate lazy_static;
-
-// Colours
-use vga_buffer::colour::{Colour, Colour::*, ColourCode};
+#[macro_use]
+extern crate crafty_os;
 
 //* Panic Handler
 use core::panic::PanicInfo;
 
+// Panic handler for normal
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    colour!(ColourCode::from_fg(LightRed));
     println!("{}", info);
     hlt_loop()
+}
+
+// Panic handler for tests
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    crafty_os::test::panic_handler(info)
 }
 
 //* Creates a loop and halts everytime to not waste CPU cycles
@@ -35,11 +40,10 @@ fn hlt_loop() -> ! {
 // This code should never return
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
-    for i in 0.. {
-        // Choose colour based on i mod 16 as their are 16 options
-        let colour: Colour = unsafe { core::mem::transmute::<u8, Colour>((i % 16) as u8) };
-        colour!(ColourCode::from_fg(colour));
-        println!("Hello World! {}", i);
-    }
+    println!("Hello World!");
+
+    #[cfg(test)]
+    test_main();
+
     hlt_loop();
 }

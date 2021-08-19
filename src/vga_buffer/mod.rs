@@ -20,7 +20,7 @@ macro_rules! print {
 #[macro_export]
 macro_rules! println {
     () => (print!("\n"));
-    ($($arg:tt)*) => (print!("{}\n", format_args!($($arg)*)));
+    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
 #[macro_export]
@@ -33,6 +33,16 @@ macro_rules! colour {
     };
 }
 
+#[macro_export]
+macro_rules! cursor {
+    () => {
+        $crate::vga_buffer::_cursor(0, 0);
+    };
+    ($x: expr, $y: expr) => {
+        $crate::vga_buffer::_colour($x, $y);
+    };
+}
+
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
@@ -42,4 +52,34 @@ pub fn _print(args: fmt::Arguments) {
 #[doc(hidden)]
 pub fn _colour(colour: ColourCode) {
     WRITER.lock().set_colour(colour);
+}
+
+#[doc(hidden)]
+pub fn _cursor(x: usize, y: usize) {
+    WRITER.lock().set_pos(x, y);
+}
+
+//* Tests
+#[test_case]
+fn test_println() {
+    println!("Testing println!");
+}
+
+#[test_case]
+fn test_println_200() {
+    for _ in 0..200 {
+        println!("Testing println!");
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    // Set cursor to start
+    cursor!();
+    let s = "Some test string that fits on a single line";
+    println!("{}", s);
+    for (i, c) in s.chars().enumerate() {
+        let screen_char = WRITER.lock().buffer.chars[0][i].read();
+        assert_eq!(char::from(screen_char.ascii_character), c);
+    }
 }

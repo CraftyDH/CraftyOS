@@ -7,14 +7,14 @@ use volatile::Volatile; // To stop compiler optimising away writes
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
-struct ScreenChar {
-    ascii_character: u8,
+pub struct ScreenChar {
+    pub ascii_character: u8,
     colour_code: ColourCode,
 }
 
 #[repr(transparent)]
-struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+pub struct Buffer {
+    pub chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
 struct Pos {
@@ -25,7 +25,7 @@ struct Pos {
 pub struct Writer {
     pos: Pos,
     colour_code: ColourCode,
-    buffer: &'static mut Buffer,
+    pub buffer: &'static mut Buffer,
 }
 
 impl Writer {
@@ -87,6 +87,10 @@ impl Writer {
 
     pub fn set_colour(&mut self, colour: ColourCode) {
         self.colour_code = colour;
+    }
+
+    pub fn set_pos(&mut self, x: usize, y: usize) {
+        self.pos = Pos { x, y }
     }
 }
 
