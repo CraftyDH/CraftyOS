@@ -30,7 +30,10 @@ impl PageFrameAllocator {
             page_bitmap_index: 0,
         };
 
-        alloc.lock_pages(alloc.page_bitmap.buffer, bitmap_size / 4096 + 1);
+        alloc.lock_pages(
+            alloc.page_bitmap.buffer,
+            alloc.page_bitmap.size as u64 / 4096 + 1,
+        );
 
         for &mut entry in mmap {
             // TODO: We should lock the kernel. However since it was loaded using UEFI loader data it should be locked.
@@ -46,13 +49,13 @@ impl PageFrameAllocator {
         let mut free_segment_size = 0;
         for &mut entry in mmap {
             if entry.ty == uefi::table::boot::MemoryType::CONVENTIONAL {
-                if entry.page_count > free_segment_size {
+                if entry.page_count * 4096 > free_segment_size {
                     free_segment = entry.phys_start as *mut u8;
                     free_segment_size = entry.page_count
                 }
             }
         }
-        return (free_segment, free_segment_size);
+        return (free_segment, free_segment_size * 4096);
     }
 
     pub fn request_page(&mut self) -> *mut u8 {
@@ -99,9 +102,8 @@ impl PageFrameAllocator {
     }
 
     pub fn free_pages(&mut self, addr: *mut u8, page_count: u64) {
-        let index = (addr as u64) / 4096;
         for page in 0..page_count {
-            unsafe { self.free_page(addr.offset((page * 4096) as isize)) };
+            self.free_page((addr as u64 + page * 4096) as *mut u8)
         }
     }
 
@@ -109,7 +111,7 @@ impl PageFrameAllocator {
         let index = (addr as u64) / 4096;
         if self.page_bitmap[index as usize] == true {
             return;
-        };
+        }
         if self.page_bitmap.set(index, true) {
             self.free_memory -= 4096;
             self.used_memory += 4096;
@@ -117,9 +119,8 @@ impl PageFrameAllocator {
     }
 
     pub fn lock_pages(&mut self, addr: *mut u8, page_count: u64) {
-        let index = (addr as u64) / 4096;
         for page in 0..page_count {
-            unsafe { self.lock_page(addr.offset((page * 4096) as isize)) };
+            self.lock_page((addr as u64 + page * 4096) as *mut u8);
         }
     }
 }
@@ -140,9 +141,8 @@ impl PageFrameAllocator {
     }
 
     pub fn unreserve_pages(&mut self, addr: *mut u8, page_count: u64) {
-        let index = (addr as u64) / 4096;
         for page in 0..page_count {
-            unsafe { self.unreserve_page(addr.offset((page * 4096) as isize)) };
+            self.unreserve_page((addr as u64 + page * 4096) as *mut u8);
         }
     }
 
@@ -160,7 +160,7 @@ impl PageFrameAllocator {
     pub fn reserve_pages(&mut self, addr: *mut u8, page_count: u64) {
         let index = (addr as u64) / 4096;
         for page in 0..page_count {
-            unsafe { self.reserve_page(addr.offset((page * 4096) as isize)) };
+            self.reserve_page((addr as u64 + page * 4096) as *mut u8);
         }
     }
 }

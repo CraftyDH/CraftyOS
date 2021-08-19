@@ -1,15 +1,21 @@
 #![no_std]
 #![no_main]
+#![feature(ptr_internals)]
 #![feature(asm)]
+#![feature(abi_x86_interrupt)]
+
+#[macro_use]
+extern crate bitflags;
+
 use core::panic::PanicInfo;
-use uefi::proto::console::gop::*;
-use uefi::table::{Runtime, SystemTable};
 
 mod bitmap;
 #[macro_use]
 mod gop;
-mod memory;
-mod paging;
+mod gdt;
+mod interrupts;
+
+// mod paging;
 
 // extern crate alloc;
 
@@ -49,7 +55,10 @@ fn panic(info: &PanicInfo) -> ! {
     }
 }
 
-use paging::page_frame_allocator::PageFrameAllocator;
+// extern "C" {
+//     static _KernelStart: u64;
+//     static _KernelEnd: u64;
+// }
 
 #[no_mangle]
 // Use extern win64 so params come through correctly. Thanks Microsoft
@@ -58,71 +67,36 @@ pub extern "win64" fn _start(
     font: PSF1Font<'static>,
     mut mmap: &mut [uefi::table::boot::MemoryDescriptor],
 ) -> ! {
-    let mut GlobalAllocator = PageFrameAllocator::new(&mut mmap);
-
-    let base = *gop.buffer.get_mut() as u64;
-    let size = gop.buffer_size as u64;
-    // Reserve GOP framebuffer
-    GlobalAllocator.reserve_pages((base - 4096 * 10) as *mut u8, (size / 4096) + 2);
-
-    // Reserve Stuff
-    GlobalAllocator.reserve_pages(0 as *mut u8, 10);
-    unsafe {
-        // Clear screen
-        core::ptr::write_bytes::<u8>(*gop.buffer.get_mut() as *mut u8, 0, gop.buffer_size);
-    }
+    // let gop_entry = *gop.buffer.get_mut() as usize;
+    // let gop_size = gop.buffer_size;
     gop::WRITER.lock().set_gop(gop, font);
+    println!("Hello World!");
 
-    // println!("{:?}", mmap);
+    // unsafe {
+    //     println!("From {} to {}", &_KernelStart, &_KernelEnd);
+    // }
+    println!(
+        "Interrupts: {}",
+        x86_64::instructions::interrupts::are_enabled()
+    );
 
-    // Init Paging
-    unsafe {
-        // Reserve Pages
-        // TODO: Reserve Kernel
+    gdt::init();
+    interrupts::init_idt();
+    unsafe { interrupts::PICS.lock().initialize() }
+    x86_64::instructions::interrupts::enable();
 
-        use paging::page_table_manager::PageTableManager;
+    println!(
+        "Interrupts: {}",
+        x86_64::instructions::interrupts::are_enabled()
+    );
 
-        let mut pml4 = GlobalAllocator.request_page() as *mut paging::PageTable;
-
-        println!("pml4 {:?}", pml4);
-        // Clear plm4
-        core::ptr::write_bytes::<u8>(pml4 as *mut u8, 0, 0x1000);
-
-        let mut page_table_manager = PageTableManager::new(pml4);
-
-        println!("Mem {}", memory::get_memory_size(&mut mmap));
-
-        // for t in (0..(memory::get_memory_size(&mut mmap))).step_by(0x1000) {
-        for t in (0..memory::get_memory_size(&mut mmap)).step_by(0x1000) {
-            page_table_manager.map_memory(&mut GlobalAllocator, t as *const u8, t as *const u8)
-        }
-
-        println!("T");
-
-        for t in (base..(base + size)).step_by(0x1000) {
-            page_table_manager.map_memory(&mut GlobalAllocator, t as *const u8, t as *const u8)
-        }
-
-        // Activate new page map
-        // TODO: Make it not crash
-        asm!("mov cr3, {}", inout(reg) pml4);
-
-        // * Test new page map
-        println!("Didn't crash");
-
-        page_table_manager.map_memory(
-            &mut GlobalAllocator,
-            0x6_000_000 as *const u8,
-            0x5_000_000 as *const u8,
-        );
-        core::ptr::write(0x5_000_000 as *mut u8, 27);
-        println!("Number {}", core::ptr::read(0x6_000_000 as *mut u8));
-    }
+    println!("End of execution. \nCraftyOS will now goto sleep...");
 
     loop {
+        // print!("|");
         // Halt processor cause why waste processor cycles
-        unsafe {
-            asm!("hlt");
-        };
+        // unsafe {
+        //     asm!("hlt");
+        // };
     }
 }

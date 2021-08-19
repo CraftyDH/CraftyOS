@@ -7,9 +7,12 @@ edition = "2018"
 
 [dependencies]
 uefi = "0.11"
-spin = "0.9"
-x86_64 = "*"
+spin = "0.5.2"
+x86_64 = "0.14.2"
+bitflags = "1.3"
+pic8259 = "0.10"
+pc-keyboard = "*"
 
 [dependencies.lazy_static]
-version = "1.4"
+version = "1.0"
 features = ["spin_no_std"]

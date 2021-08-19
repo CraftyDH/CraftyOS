@@ -43,8 +43,8 @@ impl PageTableManager {
         let indexer = super::page_map_indexer::PageMapIndexer::new(virtual_memory as u64);
         // println!("Index: {:?}", indexer);
         let mut pml4 = *self.pml4;
-        let mut pde = pml4.entries[indexer.pdp_i as usize];
 
+        let mut pde = pml4.entries[indexer.pdp_i as usize];
         let mut pdp: *mut PageTable = 0 as *mut PageTable;
         if !pde.get_flag(PtFlag::Present) {
             pdp = GlobalAllocator.request_page() as *mut PageTable;
@@ -54,12 +54,14 @@ impl PageTableManager {
             pde.set_flag(PtFlag::Present, true);
             pde.set_flag(PtFlag::ReadWrite, true);
 
-            println!("New 1");
-            pml4.entries[indexer.pdp_i as usize] = pde;
-            *self.pml4 = pml4;
+            (*self.pml4).entries[indexer.pdp_i as usize] = pde;
         } else {
             // println!("Old 1");
             pdp = (pde.get_address() << 12) as *mut PageTable;
+        }
+
+        if pdp as u64 == 0 {
+            panic!("PDP null");
         }
 
         let mut pde = (*pdp).entries[indexer.pd_i as usize];
@@ -77,8 +79,10 @@ impl PageTableManager {
             (*pdp).entries[indexer.pd_i as usize] = pde;
             // core::ptr::write_volatile(&mut pdp as *mut PageTable, pdp);
         } else {
-            // println!("Old 2");
             pd = (pde.get_address() << 12) as *mut PageTable;
+        }
+        if pdp as u64 == 0 {
+            panic!("PDP null");
         }
 
         let mut pde = (*pd).entries[indexer.pt_i as usize];
@@ -100,7 +104,10 @@ impl PageTableManager {
             pt = (pde.get_address() << 12) as *mut PageTable;
         }
 
-        // println!("New 4");
+        if pdp as u64 == 0 {
+            panic!("PDP null");
+        }
+
         let mut pde = (*pt).entries[indexer.p_i as usize];
         pde.set_address(physical_memory as u64 >> 12);
         pde.set_flag(PtFlag::Present, true);

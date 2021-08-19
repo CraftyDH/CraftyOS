@@ -1,0 +1,1 @@
+x86_64::instructions::port::Port::new(port: u16).write(value: T)

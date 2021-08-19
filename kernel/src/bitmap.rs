@@ -30,18 +30,22 @@
 //     }
 // }
 
+#[macro_use]
+use crate::gop;
+
 pub struct Bitmap {
     pub size: usize,
     pub buffer: *mut u8,
 }
 
-const BIT_INDEXER: u32 = 0b10_000_000;
+const BIT_INDEXER: u8 = 0b10_000_000;
 
 impl Bitmap {
     pub fn new(size: usize, buf_ptr: *mut u8) -> Bitmap {
         for i in 0..size {
             unsafe {
-                core::ptr::write(buf_ptr.offset(i as isize), 0);
+                *((buf_ptr as usize + i) as *mut u8) = 0;
+                // core::ptr::write(buf_ptr.offset(i as isize), 0);
             }
         }
         Bitmap {
@@ -50,9 +54,10 @@ impl Bitmap {
         }
     }
     pub fn set(&mut self, index: u64, value: bool) -> bool {
-        if index as usize > self.size * 8 {
-            return false;
-        }
+        // panic!("size: {}, index: {}", self.size, index);
+        // if index as usize > self.size * 8 {
+        //     return false;
+        // }
         let byte_index = (index / 8) as isize;
         let bit_index = BIT_INDEXER >> (index % 8);
         let mut byte = unsafe { core::ptr::read(self.buffer.offset(byte_index)) };
