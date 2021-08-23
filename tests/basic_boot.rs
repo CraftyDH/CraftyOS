@@ -7,8 +7,11 @@
 use core::panic::PanicInfo;
 use crafty_os::{hlt_loop, println};
 
-#[no_mangle] // don't mangle the name of this function
-pub extern "C" fn _start() -> ! {
+use bootloader::{entry_point, BootInfo};
+
+entry_point!(main);
+
+fn main(_boot_info: &'static BootInfo) -> ! {
     test_main();
 
     hlt_loop()

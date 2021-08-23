@@ -4,11 +4,13 @@
 #[macro_use]
 extern crate crafty_os;
 
+use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use crafty_os::qemu::{exit_qemu, QemuExitCode};
 
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+entry_point!(main);
+
+fn main(_boot_info: &'static BootInfo) -> ! {
     serial_println!("Testing panic");
     assert_eq!(0, 1); // Test something that will always be false
 

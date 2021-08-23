@@ -7,14 +7,16 @@ extern crate crafty_os;
 
 use core::panic::PanicInfo;
 
+use bootloader::{entry_point, BootInfo};
 use crafty_os::{
     gdt::{self, tss::DOUBLE_FAULT_IST_INDEX},
     qemu::{exit_qemu, QemuExitCode},
     test::panic_handler,
 };
 
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+entry_point!(main);
+
+fn main(_boot_info: &'static BootInfo) -> ! {
     println!("Testing stack overflow...");
 
     gdt::init();
