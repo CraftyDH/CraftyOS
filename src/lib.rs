@@ -40,6 +40,7 @@ pub fn hlt_loop() -> ! {
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
+    x86_64::instructions::interrupts::enable();
 }
 
 /// Entry point for `cargo test`

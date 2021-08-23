@@ -1,24 +1,23 @@
 use x86_64::structures::idt::InterruptDescriptorTable;
 
-mod handlers;
+mod exceptions;
+mod hardware;
 
 use lazy_static::lazy_static;
-
-use crate::gdt;
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        idt.breakpoint.set_handler_fn(handlers::breakpoint_handler);
-        unsafe {
-            idt.double_fault
-                .set_handler_fn(handlers::double_fault_handler)
-                .set_stack_index(gdt::tss::DOUBLE_FAULT_IST_INDEX);
-        }
+
+        // Set idt table
+        exceptions::set_exceptions_idt(&mut idt);
+        hardware::set_hardware_idt(&mut idt);
+
         idt
     };
 }
 
 pub fn init_idt() {
     IDT.load();
+    unsafe { hardware::PICS.lock().initialize() };
 }

@@ -13,11 +13,13 @@ harness = false
 
 [dependencies]
 bootloader = "0.9"
-volatile = "0.2.6"
+volatile = "0.2"
 lazy_static = {version = "1.4", features = ["spin_no_std"]}
 spin = "0.9"
-x86_64 = "0.14.2"
-uart_16550 = "0.2.0"
+x86_64 = "0.14"
+uart_16550 = "0.2"
+pic8259 = "0.10"
+pc-keyboard = "0.5"
 
 [package.metadata.bootimage]
 test-args = [

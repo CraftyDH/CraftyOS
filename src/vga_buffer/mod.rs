@@ -10,6 +10,7 @@ pub mod writer;
 use colour::ColourCode;
 use core::fmt; // So we can implement a formater
 use writer::WRITER;
+use x86_64::instructions::interrupts;
 
 //* VGA Buffer macros
 #[macro_export]
@@ -46,17 +47,27 @@ macro_rules! cursor {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    WRITER.lock().write_fmt(args).unwrap();
+
+    // Prevent race condition by disable interrupts while locking
+    interrupts::without_interrupts(|| {
+        WRITER.lock().write_fmt(args).unwrap();
+    });
 }
 
 #[doc(hidden)]
 pub fn _colour(colour: ColourCode) {
-    WRITER.lock().set_colour(colour);
+    // Prevent race condition by disable interrupts while locking
+    interrupts::without_interrupts(|| {
+        WRITER.lock().set_colour(colour);
+    });
 }
 
 #[doc(hidden)]
 pub fn _cursor(x: usize, y: usize) {
-    WRITER.lock().set_pos(x, y);
+    // Prevent race condition by disable interrupts while locking
+    interrupts::without_interrupts(|| {
+        WRITER.lock().set_pos(x, y);
+    });
 }
 
 //* Tests
@@ -75,11 +86,15 @@ fn test_println_200() {
 #[test_case]
 fn test_println_output() {
     // Set cursor to start
-    cursor!();
     let s = "Some test string that fits on a single line";
-    println!("{}", s);
-    for (i, c) in s.chars().enumerate() {
-        let screen_char = WRITER.lock().buffer.chars[0][i].read();
-        assert_eq!(char::from(screen_char.ascii_character), c);
-    }
+
+    // No interrupts because any other printing will make the test fail.
+    interrupts::without_interrupts(|| {
+        cursor!();
+        println!("{}", s);
+        for (i, c) in s.chars().enumerate() {
+            let screen_char = WRITER.lock().buffer.chars[0][i].read();
+            assert_eq!(char::from(screen_char.ascii_character), c);
+        }
+    });
 }

@@ -1,4 +1,7 @@
-use crate::qemu::{exit_qemu, QemuExitCode};
+use crate::{
+    hlt_loop,
+    qemu::{exit_qemu, QemuExitCode},
+};
 
 pub trait Testable {
     fn run(&self);
@@ -31,6 +34,4 @@ pub fn panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
     exit_qemu(QemuExitCode::Failed);
-    loop {}
 }
-
