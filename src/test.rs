@@ -1,7 +1,4 @@
-use crate::{
-    hlt_loop,
-    qemu::{exit_qemu, QemuExitCode},
-};
+use crate::qemu::{exit_qemu, QemuExitCode};
 
 pub trait Testable {
     fn run(&self);
@@ -18,7 +15,7 @@ where
     }
 }
 
-pub fn test_runner(tests: &[&dyn Testable]) {
+pub fn test_runner(tests: &[&dyn Testable]) -> ! {
     serial_println!("Running {} tests", tests.len());
     for test in tests {
         test.run();
