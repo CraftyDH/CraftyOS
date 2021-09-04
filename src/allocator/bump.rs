@@ -1,4 +1,7 @@
-use core::{alloc::{GlobalAlloc, Layout}, ptr};
+use core::{
+    alloc::{GlobalAlloc, Layout},
+    ptr,
+};
 
 use crate::locked_mutex::Locked;
 
@@ -18,7 +21,7 @@ impl BumpAllocator {
             heap_start: 0,
             heap_end: 0,
             next: 0,
-            allocations: 0
+            allocations: 0,
         }
     }
 
@@ -26,12 +29,11 @@ impl BumpAllocator {
     //* Unsafe because
     //* Ensure only called once
     //* Ensure only called on unused memory
-    pub unsafe fn init(&mut self, heap_start:usize, heap_size: usize) {
+    pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
         self.heap_start = heap_start;
         self.heap_end = heap_start + heap_size;
         self.next = heap_start;
     }
-
 }
 
 unsafe impl GlobalAlloc for Locked<BumpAllocator> {
@@ -41,11 +43,11 @@ unsafe impl GlobalAlloc for Locked<BumpAllocator> {
         let alloc_start = align_up(bump.next, layout.align());
         let alloc_end = match alloc_start.checked_add(layout.size()) {
             Some(end) => end,
-            None => return ptr::null_mut()
+            None => return ptr::null_mut(),
         };
 
         if alloc_end > bump.heap_end {
-            return ptr::null_mut() // out of memory :(
+            return ptr::null_mut(); // out of memory :(
         }
 
         // Increment variables to reflect to allocated block

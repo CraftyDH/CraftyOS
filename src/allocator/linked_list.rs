@@ -1,18 +1,18 @@
-use core::{alloc::{self, GlobalAlloc}, mem};
+use core::{
+    alloc::{self, GlobalAlloc},
+    mem,
+};
 
 use crate::{allocator::align_up, locked_mutex::Locked};
 
 struct ListNode {
-    size: usize, // Size of this free memory chunk
-    next: Option<&'static mut ListNode> // Memory location of next free memory chunk
+    size: usize,                         // Size of this free memory chunk
+    next: Option<&'static mut ListNode>, // Memory location of next free memory chunk
 }
 
 impl ListNode {
     const fn new(size: usize) -> Self {
-        Self {
-            size,
-            next: None
-        }
+        Self { size, next: None }
     }
 
     fn start_addr(&self) -> usize {
@@ -27,17 +27,16 @@ impl ListNode {
 
 pub struct LinkedListAllocator {
     // First free mem location
-    head: ListNode
+    head: ListNode,
 }
 
 impl LinkedListAllocator {
     // Creates a new Linked List Allocator
     pub const fn new() -> Self {
         Self {
-            head: ListNode::new(0)
+            head: ListNode::new(0),
         }
     }
-
 
     // Initilize the allocator with heap bounds
     //* Unsafe becuase
@@ -48,7 +47,7 @@ impl LinkedListAllocator {
     }
 
     // Adds the new memory location to the front of the list
-    unsafe fn add_free_region(&mut self, addr:usize, size: usize) {
+    unsafe fn add_free_region(&mut self, addr: usize, size: usize) {
         // Ensure that the freed region is capable of holding a ListNode
         assert_eq!(align_up(addr, core::mem::align_of::<ListNode>()), addr);
         assert!(size >= core::mem::size_of::<ListNode>());
@@ -97,13 +96,13 @@ impl LinkedListAllocator {
 
         if alloc_end > region.end_addr() {
             // Region too small
-            return Err(())
+            return Err(());
         }
 
         let excess_size = region.end_addr() - alloc_end;
         if excess_size > 0 && excess_size < mem::size_of::<ListNode>() {
             // Rest of region is too small to hold a ListNode becuase the allocation splits the allocation into a used and free part
-            return Err(())
+            return Err(());
         }
 
         Ok(alloc_start)
@@ -144,7 +143,7 @@ unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
             core::ptr::null_mut()
         }
     }
-    
+
     unsafe fn dealloc(&self, ptr: *mut u8, layout: alloc::Layout) {
         // Perform layout ajustments
         let (size, _) = LinkedListAllocator::size_align(layout);

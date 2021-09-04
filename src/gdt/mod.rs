@@ -1,6 +1,12 @@
 pub mod tss;
 
-use x86_64::{instructions::{segmentation::{CS, Segment}, tables::load_tss}, structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}};
+use x86_64::{
+    instructions::{
+        segmentation::{Segment, CS},
+        tables::load_tss,
+    },
+    structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
+};
 
 struct Selectors {
     code_selector: SegmentSelector,

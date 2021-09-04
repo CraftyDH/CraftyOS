@@ -8,12 +8,16 @@ use x86_64::{
 
 use crate::locked_mutex::Locked;
 
-use self::{bump::BumpAllocator, linked_list::LinkedListAllocator};
+use self::{
+    bump::BumpAllocator, fixed_size_block::FixedSizeBlockAllocator,
+    linked_list::LinkedListAllocator,
+};
 
 pub const HEAP_START: usize = 0x4444_4444_0000;
 pub const HEAP_SIZE: usize = 1024 * 1024; // 1 MiB
 
 pub mod bump;
+pub mod fixed_size_block;
 pub mod linked_list;
 
 fn align_up(addr: usize, align: usize) -> usize {
@@ -62,5 +66,9 @@ pub fn init_heap(
 // static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
 
 //* Use Linked List
+// #[global_allocator]
+// static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+
+//* Use Fixed Block Sizes
 #[global_allocator]
-static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+static ALLOCATOR: Locked<FixedSizeBlockAllocator> = Locked::new(FixedSizeBlockAllocator::new());
