@@ -2,6 +2,7 @@
 #![feature(asm)] // We would like to use inline assembly
 #![feature(abi_x86_interrupt)] // So we can handle iterrupts with the abi
 #![feature(alloc_error_handler)] // We need to be able to create the error handler
+#![feature(const_mut_refs)] // So mutable refrences can be in a const function
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test::test_runner)]
@@ -24,6 +25,7 @@ pub mod allocator;
 pub mod gdt;
 pub mod interrupts;
 pub mod memory;
+pub mod locked_mutex;
 
 #[cfg(test)]
 use core::panic::PanicInfo;

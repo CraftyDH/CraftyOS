@@ -1,9 +1,6 @@
 pub mod tss;
 
-use x86_64::{
-    instructions::{segmentation::set_cs, tables::load_tss},
-    structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector},
-};
+use x86_64::{instructions::{segmentation::{CS, Segment}, tables::load_tss}, structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector}};
 
 struct Selectors {
     code_selector: SegmentSelector,
@@ -29,7 +26,7 @@ pub fn init() {
     GDT.0.load();
 
     unsafe {
-        set_cs(GDT.1.code_selector);
+        CS::set_reg(GDT.1.code_selector);
         load_tss(GDT.1.tss_selector);
     }
 }
