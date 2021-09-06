@@ -18,6 +18,7 @@ use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use crafty_os::{
     allocator, hlt_loop,
     memory::{self, BootInfoFrameAllocator},
+    vga_buffer::colour::ColourCode,
 };
 use x86_64::VirtAddr;
 
@@ -49,7 +50,7 @@ entry_point!(main);
 
 #[no_mangle]
 fn main(boot_info: &'static BootInfo) -> ! {
-    println!("Hello World!");
+    println!("Welcome to CraftyOS...\nInitalizing hardware...");
 
     crafty_os::init();
 
@@ -63,28 +64,14 @@ fn main(boot_info: &'static BootInfo) -> ! {
     };
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
+    println!("Successfully initiated everything.");
 
-    let x = Box::new(42);
-    println!("heap value at {:p}", x);
+    colour!(ColourCode::from_fg(
+        crafty_os::vga_buffer::colour::Colour::Yellow
+    ));
 
-    let mut vec = Vec::new();
-    for i in 0..500 {
-        vec.push(i);
-    }
-    println!("vec at {:p}", vec.as_slice());
-
-    // create a reference counted vector -> will be freed when count reaches 0
-    let reference_counted = Rc::new(vec![1, 2, 3]);
-    let cloned_reference = reference_counted.clone();
-    println!(
-        "current reference count is {}",
-        Rc::strong_count(&cloned_reference)
-    );
-    core::mem::drop(reference_counted);
-    println!(
-        "reference count is {} now",
-        Rc::strong_count(&cloned_reference)
-    );
+    println!("Focus on this window to type, everything you type will be echoed back.");
+    println!("The mouse will be shown as a faint blinking line.");
 
     #[cfg(test)]
     test_main();

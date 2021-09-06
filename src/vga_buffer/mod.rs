@@ -1,6 +1,6 @@
 //* CONSTANTS
-const BUFFER_HEIGHT: usize = 25; // 25 charaters tall
-const BUFFER_WIDTH: usize = 80; // 80 character wide
+pub const BUFFER_HEIGHT: usize = 25; // 25 charaters tall
+pub const BUFFER_WIDTH: usize = 80; // 80 character wide
 
 //* Submouldes
 pub mod colour;
