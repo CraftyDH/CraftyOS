@@ -34,9 +34,41 @@ pub struct Writer {
 }
 
 impl Writer {
-    pub fn write_byte(&mut self, byte: u8) {
+    pub fn write_byte(&mut self, byte: u8, cursor: bool) {
         match byte {
             b'\n' => self.new_line(),
+            b'\x08' => {
+                // Backspace
+                let mut x = self.pos.x;
+                let mut y = self.pos.y;
+
+                // If at beginning of line go up to previous line
+                if x == 0 {
+                    // If on the top line just stay at pos (0, 0)
+                    if y != 0 {
+                        y -= 1;
+                        x = BUFFER_WIDTH
+                    }
+                } else {
+                    x -= 1;
+                }
+
+                // Update new positions
+                self.pos.x = x;
+                self.pos.y = y;
+
+                // Write over previous character with a space
+                // We will update cursor soon 
+                self.write_byte(b' ', false);
+
+                // It incremented again so go backwords again
+                self.pos.x = x;
+                self.pos.y = y;
+
+                // Update cursor
+                // let pos = y * BUFFER_WIDTH + x;
+                self.update_cursor();
+            },
             byte => {
                 // Check if we have written to the end of the line, if so create a new line
                 if self.pos.x >= BUFFER_WIDTH {
@@ -58,36 +90,39 @@ impl Writer {
                     colour_code: colour_code,
                 });
 
-                let pos = row * BUFFER_WIDTH + col + 1;
-
-                let mut a = Port::<u8>::new(0x3D4);
-                let mut b = Port::<u8>::new(0x3D5);
-                unsafe {
-                    a.write(0x0F);
-                    b.write((pos & 0xFF).try_into().unwrap());
-                    a.write(0x0E);
-                    b.write((pos >> 8 & 0xFF).try_into().unwrap());
-                }
-
                 self.pos.x += 1;
+
+                if cursor {
+                    self.update_cursor();
+                }
             }
         }
     }
 
-    pub fn get_byte(&self, x: usize, y: usize) -> ScreenChar {
-        return self.buffer.chars[x][y].read();
+    fn update_cursor(&self) {
+        let pos = self.pos.y * BUFFER_WIDTH + self.pos.x;
+        let mut a = Port::<u8>::new(0x3D4);
+        let mut b = Port::<u8>::new(0x3D5);
+        unsafe {
+            a.write(0x0F);
+            b.write((pos & 0xFF).try_into().unwrap());
+            a.write(0x0E);
+            b.write((pos >> 8 & 0xFF).try_into().unwrap());
+        }
     }
 
     pub fn write_str(&mut self, string: &str) {
         for byte in string.bytes() {
-            self.write_byte(byte);
+            self.write_byte(byte, false);
         }
+        self.update_cursor();
     }
 
     fn new_line(&mut self) {
         self.pos.y += 1;
         self.pos.x = 0;
 
+        // Flip cursor so it doesn't get copied down
         self.flip_bit(self.flipped.x, self.flipped.y);
         if self.pos.y >= BUFFER_HEIGHT {
             // Interate over the height and BUFFER_WIDTH
@@ -102,18 +137,11 @@ impl Writer {
             self.clear_row(BUFFER_HEIGHT - 1);
             self.pos.y -= 1;
         }
+        // Set cursor again
         self.flip_bit(self.flipped.x, self.flipped.y);
 
-        let pos = self.pos.y * BUFFER_WIDTH;
-
-        let mut a = Port::<u8>::new(0x3D4);
-        let mut b = Port::<u8>::new(0x3D5);
-        unsafe {
-            a.write(0x0F);
-            b.write((pos & 0xFF).try_into().unwrap());
-            a.write(0x0E);
-            b.write((pos >> 8 & 0xFF).try_into().unwrap());
-        }
+        // Update cursor
+        self.update_cursor();
     }
     fn clear_row(&mut self, row: usize) {
         // Set every character to a space
@@ -163,8 +191,8 @@ lazy_static! {
             flipped: Pos { x: 0, y: 0 }
         };
 
-        // Init the entire buffer
-        for _ in 0..BUFFER_HEIGHT*2 {
+        // Init the entire buffer with default colour and spaces
+        for _ in 0..BUFFER_HEIGHT * 2 {
             writer.new_line()
         }
 
