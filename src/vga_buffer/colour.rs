@@ -33,4 +33,9 @@ impl ColourCode {
         // The first 4 bits are background and the last 4 are foreground
         ColourCode((background as u8) << 4 | (foreground as u8))
     }
+
+    pub fn flip(&mut self) {
+        // println!("C: {}", self.0);
+        self.0 = (self.0 & 0x0F) << 4 | (self.0 & 0xF0) >> 4;
+    }
 }

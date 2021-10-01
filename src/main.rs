@@ -11,14 +11,10 @@ extern crate crafty_os;
 extern crate alloc;
 
 //* Panic Handler
-use core::{future::Pending, panic::PanicInfo, task::Poll};
+use core::{cell::{Ref, RefCell}, future::Pending, panic::PanicInfo, task::Poll};
 
-use crafty_os::{
-    allocator, hlt_loop,
-    memory::{self, BootInfoFrameAllocator},
-    task::{executor::Executor, keyboard, Task},
-    vga_buffer::colour::ColourCode,
-};
+use alloc::rc::Rc;
+use crafty_os::{allocator, hlt_loop, memory::{self, BootInfoFrameAllocator}, task::{Task, executor::Executor, keyboard, mouse}, vga_buffer::{colour::ColourCode, writer::WRITER}};
 use x86_64::VirtAddr;
 
 // Panic handler for normal
@@ -45,14 +41,7 @@ fn panic(info: &PanicInfo) -> ! {
 
 use bootloader::{entry_point, BootInfo};
 
-async fn wait() {
-    print!("|");
-}
-
 async fn number() -> u8 {
-    for _ in 0..0xFF {
-        wait().await;
-    }
     32
 }
 
@@ -81,10 +70,13 @@ fn main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
     println!("Successfully initiated everything.");
 
+    // The executer will run all the basic tasks which will then action drive the rest of the OS
     let mut executor = Executor::new();
-    executor.spawn(Task::new(example_task()));
+
+    executor.spawn(Task::new(mouse::print_mousemovements()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.spawn(Task::new(example_task()));
+
     executor.run();
 
     #[cfg(test)]

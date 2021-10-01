@@ -1,5 +1,6 @@
 #![no_std]
 #![feature(asm)] // We would like to use inline assembly
+#![feature(llvm_asm)]
 #![feature(abi_x86_interrupt)] // So we can handle iterrupts with the abi
 #![feature(alloc_error_handler)] // We need to be able to create the error handler
 #![feature(const_mut_refs)] // So mutable refrences can be in a const function
@@ -7,6 +8,7 @@
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
+#![feature(linked_list_cursors)]
 
 #[macro_use] // Import lazy_static! macro globally
 extern crate lazy_static;
