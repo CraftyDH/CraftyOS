@@ -8,16 +8,15 @@
 
 #[macro_use]
 extern crate crafty_os;
-#[macro_use]
 extern crate alloc;
 
 //* Panic Handler
-use core::panic::PanicInfo;
+use core::{future::Pending, panic::PanicInfo, task::Poll};
 
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use crafty_os::{
     allocator, hlt_loop,
     memory::{self, BootInfoFrameAllocator},
+    task::{executor::Executor, keyboard, Task},
     vga_buffer::colour::ColourCode,
 };
 use x86_64::VirtAddr;
@@ -46,6 +45,22 @@ fn panic(info: &PanicInfo) -> ! {
 
 use bootloader::{entry_point, BootInfo};
 
+async fn wait() {
+    print!("|");
+}
+
+async fn number() -> u8 {
+    for _ in 0..0xFF {
+        wait().await;
+    }
+    32
+}
+
+async fn example_task() {
+    let number = number().await;
+    println!("Async number: {}", number);
+}
+
 entry_point!(main);
 
 #[no_mangle]
@@ -66,12 +81,11 @@ fn main(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
     println!("Successfully initiated everything.");
 
-    colour!(ColourCode::from_fg(
-        crafty_os::vga_buffer::colour::Colour::Yellow
-    ));
-
-    println!("Focus on this window to type, everything you type will be echoed back.");
-    println!("The mouse will be shown as a faint blinking line.");
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
+    executor.spawn(Task::new(example_task()));
+    executor.run();
 
     #[cfg(test)]
     test_main();

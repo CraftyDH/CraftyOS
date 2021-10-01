@@ -26,6 +26,7 @@ pub mod gdt;
 pub mod interrupts;
 pub mod locked_mutex;
 pub mod memory;
+pub mod task;
 
 #[cfg(test)]
 use core::panic::PanicInfo;

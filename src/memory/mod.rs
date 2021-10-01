@@ -1,7 +1,5 @@
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
-use x86_64::structures::paging::{
-    FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags, PhysFrame, Size4KiB,
-};
+use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PhysFrame, Size4KiB};
 use x86_64::{registers::control::Cr3, structures::paging::PageTable, PhysAddr, VirtAddr};
 
 unsafe fn active_lvl4_table(physical_memory_offset: VirtAddr) -> &'static mut PageTable {
@@ -14,28 +12,12 @@ unsafe fn active_lvl4_table(physical_memory_offset: VirtAddr) -> &'static mut Pa
     &mut *page_table_ptr
 }
 
-pub fn create_example_mapping(
-    page: Page,
-    mapper: &mut OffsetPageTable,
-    frame_allocator: &mut impl FrameAllocator<Size4KiB>,
-) {
-    use PageTableFlags as Flags;
-    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
-    let flags = Flags::PRESENT | Flags::WRITABLE;
-
-    let map_to_result = unsafe {
-        // TODO: this is not safe, we do it only for testing
-        mapper.map_to(page, frame, flags, frame_allocator)
-    };
-    map_to_result.expect("map_to failed").flush();
-}
-
 pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
     let lvl4_table = active_lvl4_table(physical_memory_offset);
     OffsetPageTable::new(lvl4_table, physical_memory_offset)
 }
 
-// A FrameAllocator that returns usable frams from the bootloader's memory map
+/// A FrameAllocator that returns usable frams from the bootloader's memory map
 pub struct BootInfoFrameAllocator {
     memory_map: &'static MemoryMap,
     next: usize,
