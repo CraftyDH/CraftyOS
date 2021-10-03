@@ -2,6 +2,19 @@ use core::convert::TryInto;
 
 use x86_64::instructions::port::Port;
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum BaseAddressRegisterType {
+    MemoryMapping = 0,
+    InputOutput = 1,
+}
+
+pub struct BaseAddressRegister {
+    prefetchable: bool,
+    address: u8,
+    size: u32,
+    register_type: BaseAddressRegisterType,
+}
+
 pub struct PCIDevice {
     port_base: u32,
     interrupt: u32,
@@ -123,6 +136,94 @@ impl PCI {
         }
     }
 
+    pub fn get_driver(&mut self, dev: &mut PCIDevice, interruptss: bool) -> u8 {
+        match dev.vendor_id {
+            // AMD
+            0x1022 => {
+                match dev.device_id {
+                    // AM79C973 - AKA Ethernet
+                    0x2000 => {
+                        println!("Device: AM79C973");
+                    }
+                    _ => {
+                        println!("Device: Other AMD");
+                    }
+                }
+            }
+            // Intel
+            0x8086 => {
+                println!("Device: Other Intel");
+            }
+            _ => {
+                println!("Device: Unknown");
+            }
+        };
+
+        match dev.class_id {
+            // Graphics card
+            0x03 => {
+                match dev.subclass_id {
+                    // VGA
+                    0x00 => {
+                        println!("Device: VGA");
+                    }
+                    _ => {
+                        println!("Other Graphics");
+                    }
+                }
+            }
+            _ => {
+                println!("Device: Unknown");
+            }
+        };
+        0
+    }
+
+    pub fn get_base_address_register(
+        &mut self,
+        bus: u16,
+        device: u16,
+        function: u16,
+        bar_num: u16,
+    ) -> Option<BaseAddressRegister> {
+        let header_type = self.read(bus, device, function, 0x0E) & 0x7F;
+        let max_bars = 6 - (4 * header_type);
+
+        if bar_num >= max_bars.try_into().unwrap() {
+            return None;
+        }
+
+        let bar_value = self.read(bus, device, function, 0x10 + 4 * bar_num as u32);
+        let register_type = if bar_value & 0x1 == 1 {
+            BaseAddressRegisterType::InputOutput
+        } else {
+            BaseAddressRegisterType::MemoryMapping
+        };
+
+        let address;
+        let prefectchable;
+        if register_type == BaseAddressRegisterType::MemoryMapping {
+            prefectchable = ((bar_value >> 3) & 0x1) == 0x1;
+            address = 0;
+            // match (bar_value >> 1) & 0x3 {
+            //     0 => // 32 Bit Mode
+            //     1 => // 20 Bit mode
+            //     2 => // 64 Bit Mode
+            // }
+            // return None;
+        } else {
+            address = ((bar_value & !0x3) & 0xFF).try_into().unwrap();
+            prefectchable = false;
+        }
+
+        Some(BaseAddressRegister {
+            prefetchable: prefectchable,
+            address: address,
+            size: 0,
+            register_type: register_type,
+        })
+    }
+
     pub fn select_drivers(&mut self) {
         for bus in 0..8 {
             for device in 0..32 {
@@ -132,10 +233,31 @@ impl PCI {
                     1
                 };
                 for function in 0..num_functions {
-                    let dev = self.get_device_descriptor(bus, device, function);
+                    let mut dev = self.get_device_descriptor(bus, device, function);
                     if dev.vendor_id == 0x0000 || dev.vendor_id == 0xFFFF {
                         // No more functions after this
-                        break;
+                        continue;
+                    }
+
+                    for bar_num in 0..6 {
+                        let bar =
+                            match self.get_base_address_register(bus, device, function, bar_num) {
+                                Some(bar) => bar,
+                                None => continue,
+                            };
+
+                        // Ensure there is an address
+                        // We currently only have support for IO not mmap
+                        if bar.address != 0
+                            && (bar.register_type == BaseAddressRegisterType::InputOutput)
+                        {
+                            dev.port_base = bar.address.into()
+                        }
+
+                        let driver = self.get_driver(&mut dev, true);
+                        if driver != 0 {
+                            // Add driver
+                        }
                     }
 
                     println!(
