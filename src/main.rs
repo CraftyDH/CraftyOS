@@ -11,10 +11,21 @@ extern crate crafty_os;
 extern crate alloc;
 
 //* Panic Handler
-use core::{cell::{Ref, RefCell}, future::Pending, panic::PanicInfo, task::Poll};
+use core::{
+    cell::{Ref, RefCell},
+    future::Pending,
+    panic::PanicInfo,
+    task::Poll,
+};
 
 use alloc::rc::Rc;
-use crafty_os::{allocator, hlt_loop, memory::{self, BootInfoFrameAllocator}, task::{Task, executor::Executor, keyboard, mouse}, vga_buffer::{colour::ColourCode, writer::WRITER}};
+use crafty_os::{
+    allocator, hlt_loop,
+    memory::{self, BootInfoFrameAllocator},
+    pci::PCI,
+    task::{executor::Executor, keyboard, mouse, Task},
+    vga_buffer::{colour::ColourCode, writer::WRITER},
+};
 use x86_64::VirtAddr;
 
 // Panic handler for normal
@@ -69,6 +80,9 @@ fn main(boot_info: &'static BootInfo) -> ! {
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
     println!("Successfully initiated everything.");
+
+    let mut pci_controller = PCI::new();
+    pci_controller.select_drivers();
 
     // The executer will run all the basic tasks which will then action drive the rest of the OS
     let mut executor = Executor::new();
