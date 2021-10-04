@@ -58,7 +58,7 @@ impl Writer {
                 self.pos.y = y;
 
                 // Write over previous character with a space
-                // We will update cursor soon 
+                // We will update cursor soon
                 self.write_byte(b' ', false);
 
                 // It incremented again so go backwords again
@@ -68,7 +68,7 @@ impl Writer {
                 // Update cursor
                 // let pos = y * BUFFER_WIDTH + x;
                 self.update_cursor();
-            },
+            }
             byte => {
                 // Check if we have written to the end of the line, if so create a new line
                 if self.pos.x >= BUFFER_WIDTH {
@@ -137,6 +137,7 @@ impl Writer {
             self.clear_row(BUFFER_HEIGHT - 1);
             self.pos.y -= 1;
         }
+
         // Set cursor again
         self.flip_bit(self.flipped.x, self.flipped.y);
 
@@ -164,13 +165,13 @@ impl Writer {
 
     pub fn flip_bit(&mut self, x: usize, y: usize) {
         // if self.flipped.x != x || self.flipped.y != y {
-            let mut origin = self.buffer.chars[y][x].read();
-            origin.colour_code.flip();
+        let mut origin = self.buffer.chars[y][x].read();
+        origin.colour_code.flip();
 
-            self.flipped.x = x;
-            self.flipped.y = y;
+        self.flipped.x = x;
+        self.flipped.y = y;
 
-            self.buffer.chars[y][x].write(origin);
+        self.buffer.chars[y][x].write(origin);
         // }
     }
 }
@@ -192,9 +193,9 @@ lazy_static! {
         };
 
         // Init the entire buffer with default colour and spaces
-        for _ in 0..BUFFER_HEIGHT * 2 {
-            writer.new_line()
-        }
+        // for _ in 0..BUFFER_HEIGHT * 2 {
+        //     writer.new_line()
+        // }
 
         writer.pos = Pos { x: 0, y: 0 };
 

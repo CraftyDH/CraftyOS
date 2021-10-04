@@ -27,12 +27,13 @@ pub mod test;
 pub mod vga_buffer;
 pub mod allocator;
 pub mod disk;
+pub mod driver;
+pub mod executor;
 pub mod gdt;
 pub mod interrupts;
 pub mod locked_mutex;
 pub mod memory;
 pub mod pci;
-pub mod task;
 
 #[cfg(test)]
 use core::panic::PanicInfo;

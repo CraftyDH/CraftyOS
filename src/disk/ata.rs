@@ -1,13 +1,9 @@
-use core::{
-    convert::TryInto,
-    mem::{size_of, size_of_val},
-    sync::atomic::AtomicBool,
-};
+use core::convert::TryInto;
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use x86_64::instructions::port::Port;
 
-use crate::task::yield_now;
+use crate::executor::yield_now;
 
 #[repr(C, align(2))]
 #[derive(Debug)]
@@ -227,8 +223,8 @@ impl ATA {
              && (status & 0x01) != 0x01
             // There was an error
             {
-                println!("Yielding 1");
-                // yield_now().await;
+                // If we have to wait for device to be ready might as well yield
+                yield_now().await;
                 status = self.command.read();
             }
 
@@ -247,12 +243,12 @@ impl ATA {
                 buffer.push((data & 0x00FF) as u8);
             }
 
-            let (_, info, _) = unsafe { buffer.align_to::<ATADiskIdentify>() };
+            let (_, info, _) = buffer.align_to::<ATADiskIdentify>();
             Some(&info[0])
         }
     }
 
-    pub fn read_28(&mut self, sector: u32, count: usize) {
+    pub async fn read_28(&mut self, sector: u32, count: usize) {
         if sector & 0xF000_0000 == 1 || count > self.bytes_per_sector.into() {
             return;
         }
@@ -289,6 +285,9 @@ impl ATA {
                  && (status & 0x01) != 0x01
             // There was an error
             {
+                // If we have to wait for device to be ready might as well yield
+                yield_now().await;
+
                 status = self.command.read();
             }
 
@@ -300,7 +299,7 @@ impl ATA {
             println!("Reading from ATA: ");
 
             // It is now ready
-            for i in (0..count).step_by(2) {
+            for _ in (0..count).step_by(2) {
                 let wdata = self.data.read();
 
                 print!(

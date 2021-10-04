@@ -1,15 +1,17 @@
-use core::{convert::TryInto, pin::Pin, sync::atomic::{AtomicU8, AtomicUsize, Ordering}, task::{Context, Poll}};
+use core::{
+    convert::TryInto,
+    pin::Pin,
+    sync::atomic::{AtomicUsize, Ordering},
+    task::{Context, Poll},
+};
 
 use conquer_once::spin::OnceCell;
 use crossbeam_queue::ArrayQueue;
 use futures_util::{task::AtomicWaker, Stream, StreamExt};
 use ps2_mouse::{Mouse, MouseState};
-use x86_64::instructions::{
-    interrupts::{self, without_interrupts},
-    port::Port,
-};
+use x86_64::instructions::interrupts::{self, without_interrupts};
 
-use crate::vga_buffer::{self, writer::WRITER, BUFFER_HEIGHT, BUFFER_WIDTH};
+use crate::vga_buffer::{writer::WRITER, BUFFER_HEIGHT, BUFFER_WIDTH};
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
@@ -22,7 +24,7 @@ pub(crate) fn add_scancode(scancode: u8) {
             WAKER.wake();
         }
     } else {
-        println!("WARNING: scancode queue uninialized!");
+        println!("WARNING: mouse scancode queue uninialized!");
     }
 }
 
@@ -45,7 +47,7 @@ impl Stream for ScancodeStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let queue = SCANCODE_QUEUE
             .try_get()
-            .expect("Scancode queue not initialized");
+            .expect("Mouse scancode queue not initialized");
 
         // Fast path
         if let Ok(scancode) = queue.pop() {
@@ -67,10 +69,13 @@ pub async fn print_mousemovements() {
     let mut mouse = Mouse::new();
     let mut scancodes = ScancodeStream::new();
 
+    println!("Starting mouse handler...");
+
     // Init the mouse without interrupts
-    without_interrupts(|| {
-        mouse.init().unwrap();
-    });
+    if let Err(err) = without_interrupts(|| mouse.init()) {
+        print!("Mouse failed to enable: {}", err);
+        // return;
+    }
 
     mouse.set_on_complete(mouse_packet_handler);
 

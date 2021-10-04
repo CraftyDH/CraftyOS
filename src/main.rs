@@ -11,33 +11,22 @@ extern crate crafty_os;
 extern crate alloc;
 
 //* Panic Handler
-use core::{
-    cell::{Ref, RefCell},
-    future::Pending,
-    panic::PanicInfo,
-    str,
-    task::Poll,
-};
+use core::{panic::PanicInfo, str};
 
-use alloc::{
-    rc::Rc,
-    string::String,
-    vec::{self, Vec},
-};
+use alloc::vec::Vec;
 use crafty_os::{
     allocator,
-    disk::ata::{ATADiskIdentify, ATA},
+    disk::ata::ATA,
+    driver::{keyboard, mouse},
+    executor::{spawner::Spawner, task::TaskPriority, yield_now, Executor},
     hlt_loop,
     memory::{self, BootInfoFrameAllocator},
     pci::PCI,
-    task::{executor::Executor, keyboard, mouse, yield_now, Task},
-    vga_buffer::{colour::ColourCode, writer::WRITER},
 };
-use spin::Mutex;
 use x86_64::VirtAddr;
 
 // Panic handler for normal
-#[cfg(not(test))]
+// #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     use crafty_os::vga_buffer::colour::{Colour, ColourCode};
@@ -47,12 +36,12 @@ fn panic(info: &PanicInfo) -> ! {
     hlt_loop()
 }
 
-// Panic handler for tests
-#[cfg(test)]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    crafty_os::test::panic_handler(info)
-}
+// // Panic handler for tests
+// #[cfg(test)]
+// #[panic_handler]
+// fn panic(info: &PanicInfo) -> ! {
+//     crafty_os::test::panic_handler(info)
+// }
 
 //* The entry point
 // Don't mangle the name so that the bootloader can run the function
@@ -61,17 +50,26 @@ fn panic(info: &PanicInfo) -> ! {
 use bootloader::{entry_point, BootInfo};
 
 async fn number() -> u8 {
+    yield_now().await;
     32
 }
 
-async fn example_task() {
+async fn slow() {
+    println!("Task");
+    yield_now().await;
+    println!("Task 2");
+}
+
+async fn example_task(spawner: Spawner) {
+    let slow_id = spawner.spawn(slow(), TaskPriority::Normal);
+    yield_now().await;
+    spawner.kill(slow_id);
+
     let number = number().await;
     println!("Async number: {}", number);
 }
 
 async fn read_disks() {
-    println!("Yielding");
-    // yield_now().await;
     // Interrupt 14
     let mut ata_0_master = ATA::new(0x1F0, true);
     let mut ata_0_master_info: Vec<u8> = Vec::with_capacity(512);
@@ -81,26 +79,26 @@ async fn read_disks() {
     let mut ata_0_slave_info: Vec<u8> = Vec::with_capacity(512);
     let ata_0_slave_info = ata_0_slave.identify(&mut ata_0_slave_info).await;
 
-    println!("Yielding");
-    // yield_now().await;
+    // Yeild because these instructions could be expensive
+    yield_now().await;
 
     // Interrupt 15
-    // let mut ata_1_master = ATA::new(0x170, true);
-    // let mut ata_1_master_info: Vec<u8> = Vec::with_capacity(512);
-    // let ata_1_master_info = ata_1_master.identify(&mut ata_1_master_info).await;
+    let mut ata_1_master = ATA::new(0x170, true);
+    let mut ata_1_master_info: Vec<u8> = Vec::with_capacity(512);
+    let ata_1_master_info = ata_1_master.identify(&mut ata_1_master_info).await;
 
-    // let mut ata_1_slave = ATA::new(0x170, false);
-    // let mut ata_1_slave_info: Vec<u8> = Vec::with_capacity(512);
-    // let ata_1_slave_info = ata_1_slave.identify(&mut ata_1_slave_info).await;
+    let mut ata_1_slave = ATA::new(0x170, false);
+    let mut ata_1_slave_info: Vec<u8> = Vec::with_capacity(512);
+    let ata_1_slave_info = ata_1_slave.identify(&mut ata_1_slave_info).await;
 
-    println!("Yielding");
-    // yield_now().await;
+    // Yeild because these instructions could be expensive
+    yield_now().await;
 
     for (ata_info, name) in [
         (ata_0_master_info, "ATA 0 Master"),
         (ata_0_slave_info, "ATA 0 Slave"),
-        // (ata_1_master_info, "ATA 1 Master"),
-        // (ata_1_slave_info, "ATA 1 Slave"),
+        (ata_1_master_info, "ATA 1 Master"),
+        (ata_1_slave_info, "ATA 1 Slave"),
     ] {
         if let Some(info) = ata_info {
             println!("Found drive on {}", name);
@@ -123,6 +121,11 @@ async fn read_disks() {
     // ata_0_master.read_28(10, 255);
 }
 
+async fn get_pci_devices() {
+    let mut pci_controller = PCI::new();
+    pci_controller.select_drivers().await;
+}
+
 entry_point!(main);
 
 #[no_mangle]
@@ -140,22 +143,30 @@ fn main(boot_info: &'static BootInfo) -> ! {
         BootInfoFrameAllocator::init(&boot_info.memory_map)
     };
 
+    println!("Initializing HEAP...");
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
-    println!("Successfully initiated everything.");
-
-    // let mut pci_controller = PCI::new();
-    // pci_controller.select_drivers();
 
     // The executer will run all the basic tasks which will then action drive the rest of the OS
+    println!("Initializing EXECUTOR...");
     let mut executor = Executor::new();
-    executor.spawn(Task::new(keyboard::print_keypresses()));
-    // executor.spawn(Task::new(mouse::print_mousemovements()));
-    executor.spawn(Task::new(read_disks()));
-    executor.spawn(Task::new(example_task()));
+    let spawner = executor.get_spawner();
+
+    // Start all the interrupts first
+    spawner.spawn(keyboard::print_keypresses(), TaskPriority::Interrupt);
+    spawner.spawn(mouse::print_mousemovements(), TaskPriority::Interrupt);
+
+    // Then start the processes
+    spawner.spawn(read_disks(), TaskPriority::Normal);
+    // spawner.spawn(get_pci_devices(), TaskPriority::Normal);
+    spawner.spawn(example_task(spawner.clone()), TaskPriority::Normal);
+
+    println!("Starting EXECUTOR...");
     executor.run();
 
-    #[cfg(test)]
-    test_main();
+    panic!("Executor has finished :/");
 
-    hlt_loop();
+    // #[cfg(test)]
+    // test_main();
+
+    // hlt_loop();
 }

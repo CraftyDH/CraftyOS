@@ -1,4 +1,3 @@
-use linked_list_allocator::LockedHeap;
 use x86_64::{
     structures::paging::{
         mapper::MapToError, FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB,
@@ -8,10 +7,7 @@ use x86_64::{
 
 use crate::locked_mutex::Locked;
 
-use self::{
-    bump::BumpAllocator, fixed_size_block::FixedSizeBlockAllocator,
-    linked_list::LinkedListAllocator,
-};
+use self::fixed_size_block::FixedSizeBlockAllocator;
 
 pub const HEAP_START: usize = 0x4444_4444_0000;
 pub const HEAP_SIZE: usize = 1024 * 1024; // 1 MiB

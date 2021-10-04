@@ -19,7 +19,7 @@ pub(crate) fn add_scancode(scancode: u8) {
             WAKER.wake();
         }
     } else {
-        println!("WARNING: scancode queue uninialized!");
+        println!("WARNING: keyboard scancode queue uninialized!");
     }
 }
 
@@ -42,7 +42,7 @@ impl Stream for ScancodeStream {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let queue = SCANCODE_QUEUE
             .try_get()
-            .expect("Scancode queue not initialized");
+            .expect("Keyboard scancode queue not initialized");
 
         // Fast path
         if let Ok(scancode) = queue.pop() {
@@ -63,6 +63,8 @@ impl Stream for ScancodeStream {
 pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
     let mut keyboard = Keyboard::new(Us104Key, ScancodeSet1, HandleControl::Ignore);
+
+    println!("Starting keyboard handler...");
 
     // This loop should never return
     while let Some(scancode) = scancodes.next().await {

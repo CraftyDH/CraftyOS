@@ -2,6 +2,8 @@ use core::convert::TryInto;
 
 use x86_64::instructions::port::Port;
 
+use crate::executor::yield_now;
+
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum BaseAddressRegisterType {
     MemoryMapping = 0,
@@ -224,7 +226,7 @@ impl PCI {
         })
     }
 
-    pub fn select_drivers(&mut self) {
+    pub async fn select_drivers(&mut self) {
         for bus in 0..8 {
             for device in 0..32 {
                 let num_functions = if self.get_device_functions(bus, device) {
@@ -271,6 +273,8 @@ impl PCI {
                         dev.device_id & 0xFF
                     );
                 }
+                // Pass control over after each device scan
+                yield_now().await;
             }
         }
     }
