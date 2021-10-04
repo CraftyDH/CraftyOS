@@ -4,11 +4,13 @@
 #![feature(abi_x86_interrupt)] // So we can handle iterrupts with the abi
 #![feature(alloc_error_handler)] // We need to be able to create the error handler
 #![feature(const_mut_refs)] // So mutable refrences can be in a const function
+#![feature(generators)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 #![feature(linked_list_cursors)]
+#![feature(core_intrinsics)]
 
 #[macro_use] // Import lazy_static! macro globally
 extern crate lazy_static;
@@ -24,12 +26,13 @@ pub mod test;
 #[macro_use]
 pub mod vga_buffer;
 pub mod allocator;
+pub mod disk;
 pub mod gdt;
 pub mod interrupts;
 pub mod locked_mutex;
 pub mod memory;
-pub mod task;
 pub mod pci;
+pub mod task;
 
 #[cfg(test)]
 use core::panic::PanicInfo;

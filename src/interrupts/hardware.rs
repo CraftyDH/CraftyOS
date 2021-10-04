@@ -3,6 +3,7 @@ use spin;
 use x86_64::{
     instructions::port::PortReadOnly,
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame},
+    VirtAddr,
 };
 
 use crate::task::{keyboard, mouse};
@@ -16,6 +17,8 @@ pub enum HardwareInterruptOffset {
     Timer = PIC1_OFFSET,
     Keyboard,
     Mouse = PIC1_OFFSET + 12,
+    ATAMaster0 = PIC1_OFFSET + 14,
+    ATASlave0 = PIC1_OFFSET + 15,
 }
 
 impl HardwareInterruptOffset {
@@ -35,8 +38,13 @@ pub fn set_hardware_idt(idt: &mut InterruptDescriptorTable) -> &mut InterruptDes
     idt[HardwareInterruptOffset::Timer.as_usize()].set_handler_fn(timer_handler);
     idt[HardwareInterruptOffset::Keyboard.as_usize()].set_handler_fn(ps2_keyboard_handler);
     idt[HardwareInterruptOffset::Mouse.as_usize()].set_handler_fn(ps2_mouse_handler);
-
+    idt[HardwareInterruptOffset::ATAMaster0.as_usize()].set_handler_fn(ata_handler);
+    idt[HardwareInterruptOffset::ATASlave0.as_usize()].set_handler_fn(ata_handler);
     idt
+}
+
+extern "x86-interrupt" fn ata_handler(stack_frame: InterruptStackFrame) {
+    println!("ATA Interrupt: {:?}", stack_frame);
 }
 
 extern "x86-interrupt" fn timer_handler(_stack_frame: InterruptStackFrame) {

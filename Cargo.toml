@@ -27,12 +27,13 @@ conquer-once = {version = "0.3", default-features = false}
 futures-util = {version = "0.3", default-features = false, features = ["alloc"]}
 
 [package.metadata.bootimage]
-run-args = [
+run-command = [
+    "qemu-system-x86_64", 
+    "-drive", "format=raw,file={},if=ide",
     "-net", "nic,model=pcnet"
 ]
 test-args = [
     "-device", "isa-debug-exit,iobase=0xf4,iosize=0x04",
-    "-net", "nic,model=pcnet",
     "-serial", "stdio",
     "-display", "none"
 ]
