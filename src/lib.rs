@@ -5,6 +5,7 @@
 #![feature(alloc_error_handler)] // We need to be able to create the error handler
 #![feature(const_mut_refs)] // So mutable refrences can be in a const function
 #![feature(generators)]
+#![feature(naked_functions)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test::test_runner)]
@@ -33,6 +34,7 @@ pub mod gdt;
 pub mod interrupts;
 pub mod locked_mutex;
 pub mod memory;
+pub mod multitasking;
 pub mod pci;
 
 #[cfg(test)]
@@ -61,7 +63,7 @@ pub fn hlt_loop() -> ! {
 pub fn init() {
     gdt::init();
     interrupts::init_idt();
-    x86_64::instructions::interrupts::enable();
+    // x86_64::instructions::interrupts::enable();
 }
 
 #[cfg(test)]

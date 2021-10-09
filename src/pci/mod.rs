@@ -2,7 +2,7 @@ use core::convert::TryInto;
 
 use x86_64::instructions::port::Port;
 
-use crate::executor::yield_now;
+use crate::executor::{spawner::Spawner, yield_now};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum BaseAddressRegisterType {
@@ -138,7 +138,7 @@ impl PCI {
         }
     }
 
-    pub fn get_driver(&mut self, dev: &mut PCIDevice, interruptss: bool) -> u8 {
+    pub fn get_driver(&mut self, dev: &mut PCIDevice, spawner: Spawner) -> u8 {
         match dev.vendor_id {
             // AMD
             0x1022 => {
@@ -226,7 +226,7 @@ impl PCI {
         })
     }
 
-    pub async fn select_drivers(&mut self) {
+    pub async fn select_drivers(&mut self, spawner: Spawner) {
         for bus in 0..8 {
             for device in 0..32 {
                 let num_functions = if self.get_device_functions(bus, device) {
@@ -256,7 +256,7 @@ impl PCI {
                             dev.port_base = bar.address.into()
                         }
 
-                        let driver = self.get_driver(&mut dev, true);
+                        let driver = self.get_driver(&mut dev, spawner.clone());
                         if driver != 0 {
                             // Add driver
                         }

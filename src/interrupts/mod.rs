@@ -1,12 +1,12 @@
 use x86_64::structures::idt::InterruptDescriptorTable;
 
-mod exceptions;
-mod hardware;
+pub mod exceptions;
+pub mod hardware;
 
 use lazy_static::lazy_static;
 
 lazy_static! {
-    static ref IDT: InterruptDescriptorTable = {
+    pub static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
 
         // Set idt table

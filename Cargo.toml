@@ -38,3 +38,6 @@ test-args = [
     "-display", "none"
 ]
 test-success-exit-code = 33         # (0x10 << 1) | 1
+
+[profile.dev]
+debug = false

@@ -124,27 +124,52 @@ impl Writer {
 
         // Flip cursor so it doesn't get copied down
         self.flip_bit(self.flipped.x, self.flipped.y);
+
+        // Naive implemention which copies each character up, via a loop
+
+        // if self.pos.y >= BUFFER_HEIGHT {
+        //     // Interate over the height and BUFFER_WIDTH
+        //     // Then read the character and write it a line up
+        //     for row in 1..BUFFER_HEIGHT {
+        //         for col in 0..BUFFER_WIDTH {
+        //             let chr = self.buffer.chars[row][col].read();
+        //             self.buffer.chars[row - 1][col].write(chr);
+        //         }
+        //     }
+        //     // Clear the bottom row and set coloum pos back to the beginning
+        //     self.clear_row(BUFFER_HEIGHT - 1);
+        //     self.pos.y -= 1;
+        // }
+
+        // Copy buffer overlappings
         if self.pos.y >= BUFFER_HEIGHT {
-            // Interate over the height and BUFFER_WIDTH
-            // Then read the character and write it a line up
-            for row in 1..BUFFER_HEIGHT {
-                for col in 0..BUFFER_WIDTH {
-                    let chr = self.buffer.chars[row][col].read();
-                    self.buffer.chars[row - 1][col].write(chr);
-                }
+            unsafe {
+                // The screen buffer uses 16 bits and with a 64 bit pointer.
+                // Because of this we can copy 4 characters at a time, at must account for that.
+                // 64 / 16 = 4
+                core::ptr::copy(
+                    (0xb8000 as *const u64).offset((BUFFER_WIDTH / 4).try_into().unwrap()),
+                    0xb8000 as *mut u64,
+                    (BUFFER_HEIGHT) * (BUFFER_WIDTH) / 4,
+                );
             }
-            // Clear the bottom row and set coloum pos back to the beginning
-            self.clear_row(BUFFER_HEIGHT - 1);
             self.pos.y -= 1;
         }
-
         // Set cursor again
         self.flip_bit(self.flipped.x, self.flipped.y);
 
         // Update cursor
         self.update_cursor();
     }
-    fn clear_row(&mut self, row: usize) {
+
+    /// Fills screen with spaces with colour of self.colour
+    pub fn fill_screen(&mut self) {
+        for row in 0..BUFFER_HEIGHT {
+            self.fill_row(row);
+        }
+    }
+
+    pub fn fill_row(&mut self, row: usize) {
         // Set every character to a space
         let blank = ScreenChar {
             ascii_character: b' ',
@@ -172,7 +197,6 @@ impl Writer {
         self.flipped.y = y;
 
         self.buffer.chars[y][x].write(origin);
-        // }
     }
 }
 
@@ -192,12 +216,12 @@ lazy_static! {
             flipped: Pos { x: 0, y: 0 }
         };
 
+        writer.fill_screen();
+
         // Init the entire buffer with default colour and spaces
         // for _ in 0..BUFFER_HEIGHT * 2 {
         //     writer.new_line()
         // }
-
-        writer.pos = Pos { x: 0, y: 0 };
 
         Mutex::new( writer)
     };
