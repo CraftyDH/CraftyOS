@@ -69,10 +69,12 @@ pub struct Registers {
 // See: https://github.com/xfoxfu/rust-xos/blob/8a07a69ef/kernel/src/interrupts/handlers.rs#L112
 /// Allows the access and modification of CPU registers
 /// Args returned: (stack_frame: &mut InterruptStackFrame, regs: &mut Registers)
+#[macro_export]
 macro_rules! wrap {
     ($fn: ident => $w:ident) => {
         #[naked]
-        pub unsafe extern "x86-interrupt" fn $w() {
+        pub extern "x86-interrupt" fn $w(_: InterruptStackFrame) {
+            unsafe {
             asm!(
                 "push rbp",
                 "push rax",
@@ -112,6 +114,7 @@ macro_rules! wrap {
                 sym $fn,
                 options(noreturn)
             );
+            }
         }
     };
 }

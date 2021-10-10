@@ -53,17 +53,9 @@ impl TaskManager {
             task_queue.push_back(self.current_task);
         } else {
             println!("Starting first task...\n");
-            println!("If this panicks with DOUBLE FAULT then this is a known issue.");
-            println!("The problem is caused by debug mode, for now it can be solved by using release mode. `cargo run --release`");
         }
 
         // println!("Switching process {:?}", task_queue);
-
-        // self.tsk_num += 1;
-        // if self.tsk_num <= 50 {
-        //     return;
-        // }
-        // self.tsk_num = 0;
 
         // Can we get another task
         if let Some(next_task_id) = task_queue.pop_front() {
@@ -81,6 +73,7 @@ impl TaskManager {
 
                 let inner = stack_frame_mut.extract_inner();
 
+                // Write new stack_frame of new process
                 write_volatile(
                     inner as *mut InterruptStackFrameValue,
                     next_task.state_isf.clone(),
@@ -91,13 +84,11 @@ impl TaskManager {
                 // sf.stack_pointer = next_task.state_isf.stack_pointer;
                 // // sf.stack_segment = next_task.state_isf.stack_segment;
                 // sf.cpu_flags = next_task.state_isf.cpu_flags;
+
+                // Write cpu registers to what the new process expects
                 *regs = next_task.state_reg.clone();
-                // let (a, b) = Cr3::read();
-                // Cr3::write(a, b);
             }
-            // println!("Switched to process {:?}", next_task_id);
         }
         // Otherwise continue running the only task
-        // print!(",");
     }
 }
