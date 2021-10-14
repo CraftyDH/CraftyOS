@@ -1,7 +1,7 @@
 use core::convert::TryInto;
 
 use alloc::vec::Vec;
-use x86_64::instructions::port::Port;
+use x86_64::{instructions::port::Port, software_interrupt};
 
 use crate::executor::yield_now;
 
@@ -178,10 +178,7 @@ impl ATA {
         }
     }
 
-    pub async fn identify<'buf>(
-        &mut self,
-        buffer: &'buf mut Vec<u8>,
-    ) -> Option<&'buf ATADiskIdentify> {
+    pub fn identify<'buf>(&mut self, buffer: &'buf mut Vec<u8>) -> Option<&'buf ATADiskIdentify> {
         unsafe {
             // Who are we talking to?
             if self.master {
@@ -224,7 +221,7 @@ impl ATA {
             // There was an error
             {
                 // If we have to wait for device to be ready might as well yield
-                yield_now().await;
+                software_interrupt!(0x20);
                 status = self.command.read();
             }
 
@@ -248,7 +245,7 @@ impl ATA {
         }
     }
 
-    pub async fn read_28(&mut self, sector: u32, count: usize) {
+    pub fn read_28(&mut self, sector: u32, count: usize) {
         if sector & 0xF000_0000 == 1 || count > self.bytes_per_sector.into() {
             return;
         }
@@ -286,7 +283,7 @@ impl ATA {
             // There was an error
             {
                 // If we have to wait for device to be ready might as well yield
-                yield_now().await;
+                software_interrupt!(0x20);
 
                 status = self.command.read();
             }

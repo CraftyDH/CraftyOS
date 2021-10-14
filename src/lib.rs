@@ -5,6 +5,7 @@
 #![feature(alloc_error_handler)] // We need to be able to create the error handler
 #![feature(const_mut_refs)] // So mutable refrences can be in a const function
 #![feature(generators)]
+#![feature(fn_traits)]
 #![feature(naked_functions)]
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]

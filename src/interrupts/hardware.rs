@@ -36,8 +36,7 @@ pub static PICS: spin::Mutex<ChainedPics> =
     spin::Mutex::new(unsafe { ChainedPics::new(PIC1_OFFSET, PIC2_OFFSET) });
 
 pub fn set_hardware_idt(idt: &mut InterruptDescriptorTable) -> &mut InterruptDescriptorTable {
-    idt[HardwareInterruptOffset::Timer.as_usize()]
-        .set_handler_fn(unsafe { transmute(wrapped_timer_handler as *mut fn()) });
+    idt[HardwareInterruptOffset::Timer.as_usize()].set_handler_fn(wrapped_timer_handler);
     idt[HardwareInterruptOffset::Keyboard.as_usize()].set_handler_fn(ps2_keyboard_handler);
     idt[HardwareInterruptOffset::Mouse.as_usize()].set_handler_fn(ps2_mouse_handler);
     idt[HardwareInterruptOffset::ATAMaster0.as_usize()].set_handler_fn(ata_master_0_handler);
@@ -127,11 +126,10 @@ extern "C" fn timer_handler(stack_frame: &mut InterruptStackFrame, regs: &mut Re
     // We should actually do something with the timer
     // print!("{:?}", stack_frame);
 
-    let mut mutex = crate::multitasking::TASKMANAGER.try_lock().unwrap();
-    // print!(">");
-    mutex.switch_task_interrupt(stack_frame, regs);
-
-    // print!("{:?}", stack_frame);
+    crate::multitasking::TASKMANAGER
+        .try_lock()
+        .unwrap()
+        .switch_task_interrupt(stack_frame, regs);
 
     // Tell the PICS that we have handled the interrupt
     unsafe {

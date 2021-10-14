@@ -1,4 +1,6 @@
 use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
+use conquer_once::spin::OnceCell;
+use spin::Mutex;
 use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PhysFrame, Size4KiB};
 use x86_64::{registers::control::Cr3, structures::paging::PageTable, PhysAddr, VirtAddr};
 
@@ -55,3 +57,5 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
         frame
     }
 }
+
+pub const FRAMEALLOCATOR: OnceCell<Mutex<BootInfoFrameAllocator>> = OnceCell::uninit();

@@ -12,21 +12,28 @@ extern crate crafty_os;
 extern crate alloc;
 
 //* Panic Handler
-use core::{panic::PanicInfo, str};
+use core::{borrow::BorrowMut, cell::RefCell, panic::PanicInfo, str};
 
-use alloc::{string::String, vec::Vec};
+use alloc::{string::String, sync::Arc, vec::Vec};
 use crafty_os::{
     allocator,
     disk::ata::ATA,
-    driver::driver_task,
+    driver::{self, driver_task},
     executor::{spawner::Spawner, task::TaskPriority, yield_now, Executor},
     gdt, hlt_loop, interrupts,
     memory::{self, BootInfoFrameAllocator},
-    multitasking::{self, Task, TaskManager, TASKMANAGER},
+    multitasking::{
+        self,
+        taskmanager::{self, spawn_thread},
+        Task, TaskManager, TASKMANAGER,
+    },
     pci::PCI,
 };
+use spin::Mutex;
 use x86_64::{
     instructions::{hlt, interrupts::enable as enable_interrupts},
+    software_interrupt,
+    structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags},
     VirtAddr,
 };
 
@@ -74,30 +81,24 @@ async fn example_task(spawner: Spawner) {
     println!("Async number: {}", number);
 }
 
-async fn read_disks() {
+fn read_disks() {
     // Interrupt 14
     let mut ata_0_master = ATA::new(0x1F0, true);
     let mut ata_0_master_info: Vec<u8> = Vec::with_capacity(512);
-    let ata_0_master_info = ata_0_master.identify(&mut ata_0_master_info).await;
+    let ata_0_master_info = ata_0_master.identify(&mut ata_0_master_info);
 
     let mut ata_0_slave = ATA::new(0x1F0, false);
     let mut ata_0_slave_info: Vec<u8> = Vec::with_capacity(512);
-    let ata_0_slave_info = ata_0_slave.identify(&mut ata_0_slave_info).await;
-
-    // Yeild because these instructions could be expensive
-    yield_now().await;
+    let ata_0_slave_info = ata_0_slave.identify(&mut ata_0_slave_info);
 
     // Interrupt 15
     let mut ata_1_master = ATA::new(0x170, true);
     let mut ata_1_master_info: Vec<u8> = Vec::with_capacity(512);
-    let ata_1_master_info = ata_1_master.identify(&mut ata_1_master_info).await;
+    let ata_1_master_info = ata_1_master.identify(&mut ata_1_master_info);
 
     let mut ata_1_slave = ATA::new(0x170, false);
     let mut ata_1_slave_info: Vec<u8> = Vec::with_capacity(512);
-    let ata_1_slave_info = ata_1_slave.identify(&mut ata_1_slave_info).await;
-
-    // Yeild because these instructions could be expensive
-    yield_now().await;
+    let ata_1_slave_info = ata_1_slave.identify(&mut ata_1_slave_info);
 
     for (ata_info, name) in [
         (ata_0_master_info, "ATA 0 Master"),
@@ -144,6 +145,7 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
 
     println!("Initializing Frame Allocator...");
     let physical_memory_offset = VirtAddr::new(boot_info.physical_memory_offset);
+
     let mut mapper = unsafe { memory::init(physical_memory_offset) };
     let mut frame_allocator = unsafe {
         // Init the frame allocator
@@ -154,25 +156,19 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("Heap initialization failed");
 
     println!("Initializing Task Manager...");
-    let mut task_manager = TASKMANAGER.lock();
 
-    // Spawn driver task
-    let mut driver = Task::new(&mut frame_allocator, &mut mapper);
-    driver.set_args_0(driver_task);
-    task_manager.spawn(driver);
+    TASKMANAGER.lock().init(frame_allocator, mapper);
 
-    // Spawn string writer
-    let mut string = Task::new(&mut frame_allocator, &mut mapper);
-    let (a, b, c) = String::from("Pass the value").into_raw_parts();
-    string.set_args_3(task_str, a, b, c);
-    task_manager.spawn(string);
+    // Spawn driver thread
+    spawn_thread(|| {
+        driver_task();
+    });
 
-    let mut chr_num = Task::new(&mut frame_allocator, &mut mapper);
-    chr_num.set_args_2(task_chr_num, 'X', 99);
-    task_manager.spawn(chr_num);
-
-    // Release the mutex
-    drop(task_manager);
+    // Read disks
+    spawn_thread(|| {
+        // get_pci_devices(spawner);
+        read_disks();
+    });
 
     println!("Enabling Interrupts...");
     // Enable interrupts so that task scheduler starts
@@ -180,8 +176,8 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
 
     println!("Waiting for task manager to take control...");
 
-    // Wait for next tick
-    hlt();
+    // Pretent to be timer
+    unsafe { software_interrupt!(0x20) };
 
     //* This thead no longer exists
     // This is because the task manager doesn't keep any info on this thread to return
@@ -211,22 +207,4 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
     // test_main();
 
     // hlt_loop();
-}
-
-/// As long as this is called from rust char should be safe
-extern "C" fn task_chr_num(chr: char, num: u8) {
-    loop {
-        unsafe { asm!("hlt") }
-        println!("{}{}", chr, num);
-    }
-}
-
-extern "C" fn task_str(ptr: *mut u8, length: usize, capacity: usize) {
-    let _str = unsafe { Vec::from_raw_parts(ptr, length, capacity) };
-    // let string = unsafe { String::from_raw_parts(chr, len, len) };
-    loop {
-        unsafe { asm!("hlt") };
-
-        println!("Str {:?}", str::from_utf8(&_str).unwrap());
-    }
 }

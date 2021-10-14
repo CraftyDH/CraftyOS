@@ -30,7 +30,9 @@ impl Sleep {
             if self.0.swap(false, Ordering::Acquire) {
                 break;
             } else {
-                hlt();
+                // hlt();
+                // Create a timer interrupt
+                unsafe { x86_64::software_interrupt!(0x20) };
             }
         }
     }
