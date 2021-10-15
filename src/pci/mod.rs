@@ -2,7 +2,7 @@ use core::convert::TryInto;
 
 use x86_64::instructions::port::Port;
 
-use crate::executor::{spawner::Spawner, yield_now};
+use crate::executor::spawner::Spawner;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum BaseAddressRegisterType {
@@ -226,7 +226,7 @@ impl PCI {
         })
     }
 
-    pub async fn select_drivers(&mut self, spawner: Spawner) {
+    pub fn select_drivers(&mut self) {
         for bus in 0..8 {
             for device in 0..32 {
                 let num_functions = if self.get_device_functions(bus, device) {
@@ -256,10 +256,10 @@ impl PCI {
                             dev.port_base = bar.address.into()
                         }
 
-                        let driver = self.get_driver(&mut dev, spawner.clone());
-                        if driver != 0 {
-                            // Add driver
-                        }
+                        // let driver = self.get_driver(&mut dev, spawner.clone());
+                        // if driver != 0 {
+                        //     // Add driver
+                        // }
                     }
 
                     println!(
@@ -273,8 +273,6 @@ impl PCI {
                         dev.device_id & 0xFF
                     );
                 }
-                // Pass control over after each device scan
-                yield_now().await;
             }
         }
     }

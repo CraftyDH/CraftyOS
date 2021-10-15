@@ -1,12 +1,11 @@
 use x86_64::{
-    instructions::segmentation::{cs, Segment, CS, DS, ES, FS, GS, SS},
     registers::control::Cr2,
     structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode},
 };
 
 use crate::{gdt::tss, hlt_loop};
 
-pub fn set_exceptions_idt(idt: &mut InterruptDescriptorTable) -> &mut InterruptDescriptorTable {
+pub fn set_exceptions_idt(idt: &mut InterruptDescriptorTable) {
     idt.breakpoint.set_handler_fn(breakpoint_handler);
     unsafe {
         idt.double_fault
@@ -20,11 +19,15 @@ pub fn set_exceptions_idt(idt: &mut InterruptDescriptorTable) -> &mut InterruptD
     idt.invalid_tss.set_handler_fn(invalid_tss);
     idt.stack_segment_fault
         .set_handler_fn(stack_segment_fault_handler);
-    idt
+    idt.non_maskable_interrupt.set_handler_fn(nmi_handler);
 }
 
 extern "x86-interrupt" fn breakpoint_handler(stack_frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT\n{:#?}", stack_frame);
+}
+
+extern "x86-interrupt" fn nmi_handler(stack_frame: InterruptStackFrame) {
+    println!("NMI:\n{:#?}", stack_frame);
 }
 
 extern "x86-interrupt" fn double_fault_handler(

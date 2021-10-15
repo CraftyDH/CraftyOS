@@ -5,6 +5,8 @@ pub mod hardware;
 
 use lazy_static::lazy_static;
 
+use crate::syscall;
+
 lazy_static! {
     pub static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
@@ -12,6 +14,7 @@ lazy_static! {
         // Set idt table
         exceptions::set_exceptions_idt(&mut idt);
         hardware::set_hardware_idt(&mut idt);
+        syscall::set_syscall_idt(&mut idt);
 
         idt
     };

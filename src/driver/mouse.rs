@@ -71,6 +71,11 @@ pub async fn print_mousemovements() {
 
     println!("Starting mouse handler...");
 
+    // Wait a while before trying to init
+    // for _ in 0..0xFFFF {
+    //     yield_now();
+    // }
+
     // Init the mouse without interrupts
     if let Err(err) = without_interrupts(|| mouse.init()) {
         print!("Mouse failed to enable: {}", err);

@@ -12,30 +12,21 @@ extern crate crafty_os;
 extern crate alloc;
 
 //* Panic Handler
-use core::{borrow::BorrowMut, cell::RefCell, panic::PanicInfo, str};
+use core::{panic::PanicInfo, str};
 
-use alloc::{string::String, sync::Arc, vec::Vec};
+use alloc::{boxed::Box, vec::Vec};
+use bootloader::{entry_point, BootInfo};
 use crafty_os::{
     allocator,
     disk::ata::ATA,
-    driver::{self, driver_task},
-    executor::{spawner::Spawner, task::TaskPriority, yield_now, Executor},
+    driver::driver_task,
     gdt, hlt_loop, interrupts,
     memory::{self, BootInfoFrameAllocator},
-    multitasking::{
-        self,
-        taskmanager::{self, spawn_thread},
-        Task, TaskManager, TASKMANAGER,
-    },
+    multitasking::TASKMANAGER,
     pci::PCI,
+    syscall::{spawn_thread, yield_now},
 };
-use spin::Mutex;
-use x86_64::{
-    instructions::{hlt, interrupts::enable as enable_interrupts},
-    software_interrupt,
-    structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTableFlags},
-    VirtAddr,
-};
+use x86_64::{instructions::interrupts::enable as enable_interrupts, VirtAddr};
 
 // Panic handler for normal
 // #[cfg(not(test))]
@@ -54,32 +45,6 @@ fn panic(info: &PanicInfo) -> ! {
 // fn panic(info: &PanicInfo) -> ! {
 //     crafty_os::test::panic_handler(info)
 // }
-
-//* The entry point
-// Don't mangle the name so that the bootloader can run the function
-// This code should never return
-
-use bootloader::{entry_point, BootInfo};
-
-async fn number() -> u8 {
-    yield_now().await;
-    32
-}
-
-async fn slow() {
-    println!("Task");
-    yield_now().await;
-    println!("Task 2");
-}
-
-async fn example_task(spawner: Spawner) {
-    let slow_id = spawner.spawn(slow(), TaskPriority::Normal);
-    yield_now().await;
-    spawner.kill(slow_id);
-
-    let number = number().await;
-    println!("Async number: {}", number);
-}
 
 fn read_disks() {
     // Interrupt 14
@@ -118,8 +83,6 @@ fn read_disks() {
         }
     }
 
-    println!("Ending")
-
     // let buffer = &['H' as u8, 'e' as u8, 'y' as u8, '!' as u8];
     // ata_0_master.write_28(10, buffer, 4);
     // ata_0_master.flush();
@@ -127,9 +90,9 @@ fn read_disks() {
     // ata_0_master.read_28(10, 255);
 }
 
-async fn get_pci_devices(spawner: Spawner) {
+fn get_pci_devices() {
     let mut pci_controller = PCI::new();
-    pci_controller.select_drivers(spawner).await;
+    pci_controller.select_drivers();
 }
 
 entry_point!(bootstrap);
@@ -159,6 +122,7 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
 
     TASKMANAGER.lock().init(frame_allocator, mapper);
 
+    // Start kernel is multithreaded mode
     // Spawn driver thread
     spawn_thread(|| {
         driver_task();
@@ -166,42 +130,39 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
 
     // Read disks
     spawn_thread(|| {
-        // get_pci_devices(spawner);
+        get_pci_devices();
         read_disks();
     });
 
-    println!("Enabling Interrupts...");
+    spawn_thread(|| {
+        let mut x = 5;
+
+        spawn_thread(|| {
+            for _ in 0..0xFFFF {
+                yield_now();
+                yield_now();
+                yield_now();
+                yield_now();
+                yield_now();
+            }
+            x = 555;
+        });
+        while x == 5 {
+            yield_now()
+        }
+        println!("X: {}", x)
+    });
+
     // Enable interrupts so that task scheduler starts
     enable_interrupts();
 
-    println!("Waiting for task manager to take control...");
+    println!("Waiting for Task Manager to take control...");
 
-    // Pretent to be timer
-    unsafe { software_interrupt!(0x20) };
+    // Call timer to run first task
+    // This function will then no longer continue to get executed ever
+    unsafe { asm!("int 0x20") };
 
-    //* This thead no longer exists
-    // This is because the task manager doesn't keep any info on this thread to return
-    // Therefore if this is called we have a problem
-    panic!("This bootstrap thread was called");
-
-    // The executer will run all the basic tasks which will then action drive the rest of the OS
-    // println!("Initializing EXECUTOR...");
-    // let mut executor = Executor::new();
-    // let spawner = executor.get_spawner();
-
-    // // Start all the interrupts first
-    // spawner.spawn(keyboard::print_keypresses(), TaskPriority::Interrupt);
-    // spawner.spawn(mouse::print_mousemovements(), TaskPriority::Interrupt);
-
-    // // Then start the processes
-    // spawner.spawn(read_disks(), TaskPriority::Normal);
-    // spawner.spawn(get_pci_devices(spawner.clone()), TaskPriority::Normal);
-    // spawner.spawn(example_task(spawner.clone()), TaskPriority::Normal);
-
-    // println!("Starting EXECUTOR...");
-    // executor.run();
-
-    // panic!("Executor has finished :/");
+    panic!("TASKMANAGER Failed to start...");
 
     // #[cfg(test)]
     // test_main();

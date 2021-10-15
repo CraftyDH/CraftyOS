@@ -1,10 +1,5 @@
-use core::{
-    cell::UnsafeCell, convert::TryInto, fmt::Result, mem::transmute_copy, panic,
-    sync::atomic::Ordering,
-};
+use core::{convert::TryInto, sync::atomic::Ordering};
 
-use alloc::{boxed::Box, sync::Arc};
-use spin::Mutex;
 use x86_64::{
     structures::{
         idt::{InterruptStackFrame, InterruptStackFrameValue},
@@ -13,27 +8,24 @@ use x86_64::{
     VirtAddr,
 };
 
-use crate::{interrupts::hardware::Registers, memory::BootInfoFrameAllocator};
+use crate::{assembly::registers::Registers, memory::BootInfoFrameAllocator};
 
 use super::{Task, TaskID, STACK_ADDR, STACK_SIZE};
 
 impl Task {
-    pub fn new<F>(
+    pub fn new(
         frame_allocator: &mut BootInfoFrameAllocator,
         mapper: &mut OffsetPageTable<'static>,
-        f: F,
-    ) -> Self
-    where
-        F: Fn() + Send + Sync + 'static,
-    {
+    ) -> Self {
         // Allocate a new frame to store the stack in
         let frame = frame_allocator.allocate_frame().unwrap();
-        let addr = STACK_ADDR.fetch_add(STACK_SIZE.try_into().unwrap(), Ordering::SeqCst);
+
+        // Add 4KB so that if process grows to far we get a page fault
+        let addr = STACK_ADDR.fetch_add((STACK_SIZE + 4096).try_into().unwrap(), Ordering::SeqCst);
         let page = Page::containing_address(VirtAddr::new(addr));
         let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
 
         // Map the frame the virtual stack address
-
         unsafe {
             mapper
                 .map_to(page, frame, flags, frame_allocator)
@@ -54,8 +46,6 @@ impl Task {
             id: TaskID::new(),
             state_isf,
             state_reg: Registers::default(),
-            run: true,
-            func: Arc::new(Mutex::new(Box::new(f))),
         }
     }
 

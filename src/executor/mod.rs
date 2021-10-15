@@ -6,6 +6,8 @@ use core::{
 };
 use spin::Mutex;
 
+use crate::syscall::yield_now;
+
 use self::{
     spawner::Spawner,
     task::{Task, TaskID, TaskPriority, TaskQueue, TaskWaker},
@@ -17,7 +19,6 @@ pub mod task;
 use core::sync::atomic::{AtomicBool, Ordering};
 
 use alloc::collections::BTreeMap;
-use x86_64::instructions::hlt;
 
 type SpawnerQueue = Arc<Mutex<VecDeque<QueueItem>>>;
 
@@ -32,7 +33,7 @@ impl Sleep {
             } else {
                 // hlt();
                 // Create a timer interrupt
-                unsafe { x86_64::software_interrupt!(0x20) };
+                yield_now()
             }
         }
     }
@@ -152,7 +153,7 @@ enum QueueItem {
     Kill(TaskID),
 }
 
-pub async fn yield_now() {
+pub async fn async_yield_now() {
     YieldNow(true).await
 }
 

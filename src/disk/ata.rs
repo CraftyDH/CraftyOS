@@ -3,7 +3,7 @@ use core::convert::TryInto;
 use alloc::vec::Vec;
 use x86_64::{instructions::port::Port, software_interrupt};
 
-use crate::executor::yield_now;
+use crate::syscall::yield_now;
 
 #[repr(C, align(2))]
 #[derive(Debug)]
@@ -221,7 +221,7 @@ impl ATA {
             // There was an error
             {
                 // If we have to wait for device to be ready might as well yield
-                software_interrupt!(0x20);
+                yield_now();
                 status = self.command.read();
             }
 
@@ -283,7 +283,7 @@ impl ATA {
             // There was an error
             {
                 // If we have to wait for device to be ready might as well yield
-                software_interrupt!(0x20);
+                yield_now();
 
                 status = self.command.read();
             }
@@ -390,6 +390,7 @@ impl ATA {
                  && (status & 0x01) != 0x01
             // There was an error
             {
+                yield_now();
                 status = self.command.read();
             }
 

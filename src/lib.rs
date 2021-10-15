@@ -28,6 +28,7 @@ pub mod test;
 #[macro_use]
 pub mod vga_buffer;
 pub mod allocator;
+pub mod assembly;
 pub mod disk;
 pub mod driver;
 pub mod executor;
@@ -37,6 +38,7 @@ pub mod locked_mutex;
 pub mod memory;
 pub mod multitasking;
 pub mod pci;
+pub mod syscall;
 
 #[cfg(test)]
 use core::panic::PanicInfo;

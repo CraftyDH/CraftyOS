@@ -1,7 +1,7 @@
 pub mod task;
 pub mod taskmanager;
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use alloc::{
     collections::{BTreeMap, VecDeque},
@@ -10,18 +10,18 @@ use alloc::{
 use spin::Mutex;
 use x86_64::structures::{idt::InterruptStackFrameValue, paging::OffsetPageTable};
 
-use crate::{interrupts::hardware::Registers, memory::BootInfoFrameAllocator};
+use crate::{assembly::registers::Registers, memory::BootInfoFrameAllocator};
 
 // Start stack at this address
-static STACK_ADDR: AtomicU64 = AtomicU64::new(0x80_000);
+static STACK_ADDR: AtomicU64 = AtomicU64::new(0x10_000_000);
 const STACK_SIZE: usize = 4096;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TaskID(u64);
+pub struct TaskID(usize);
 
 impl TaskID {
     pub fn new() -> Self {
-        static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+        static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
@@ -33,18 +33,21 @@ impl TaskID {
         false
     }
 
-    pub fn none_task() -> Self {
+    pub const fn none_task() -> Self {
         Self(0)
     }
 }
 
-type Func = Arc<Mutex<dyn Fn() + Send + Sync>>;
+impl From<usize> for TaskID {
+    fn from(id: usize) -> Self {
+        Self(id)
+    }
+}
+
 pub struct Task {
     pub id: TaskID,
     state_isf: InterruptStackFrameValue,
     state_reg: Registers,
-    run: bool,
-    func: Func,
 }
 
 lazy_static! {
