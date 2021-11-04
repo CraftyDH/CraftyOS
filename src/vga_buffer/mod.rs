@@ -40,7 +40,7 @@ macro_rules! cursor {
         $crate::vga_buffer::_cursor(0, 0);
     };
     ($x: expr, $y: expr) => {
-        $crate::vga_buffer::_colour($x, $y);
+        $crate::vga_buffer::_cursor($x, $y);
     };
 }
 

@@ -46,7 +46,7 @@ fn panic(info: &PanicInfo) -> ! {
 //     crafty_os::test::panic_handler(info)
 // }
 
-fn read_disks() {
+fn ata_disk_task() {
     // Interrupt 14
     let mut ata_0_master = ATA::new(0x1F0, true);
     let mut ata_0_master_info: Vec<u8> = Vec::with_capacity(512);
@@ -83,11 +83,18 @@ fn read_disks() {
         }
     }
 
-    // let buffer = &['H' as u8, 'e' as u8, 'y' as u8, '!' as u8];
-    // ata_0_master.write_28(10, buffer, 4);
-    // ata_0_master.flush();
+    if let Some(_)  = ata_0_slave_info {
+        let rw = true;
 
-    // ata_0_master.read_28(10, 255);
+        // Read
+        if rw {
+            ata_0_slave.read_28(10, 256);
+        } else {
+            let data = Vec::from("This is going to be written to the disk.");
+            ata_0_slave.write_28(10, &data, data.len());
+            ata_0_slave.flush();
+        }
+    }
 }
 
 fn get_pci_devices() {
@@ -128,30 +135,25 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
         driver_task();
     });
 
-    // Read disks
-    spawn_thread(|| {
-        get_pci_devices();
-        read_disks();
-    });
+    // Read the PCI devices
+    // spawn_thread(|| get_pci_devices());
 
-    spawn_thread(|| {
-        let mut x = 5;
+    // Perform the ATA disk check
+    // spawn_thread(|| ata_disk_task());
 
-        spawn_thread(|| {
-            for _ in 0..0xFFFF {
-                yield_now();
-                yield_now();
-                yield_now();
-                yield_now();
-                yield_now();
-            }
-            x = 555;
-        });
-        while x == 5 {
-            yield_now()
-        }
-        println!("X: {}", x)
-    });
+    // Perform A|B|C|D
+    // spawn_thread(|| {
+    //     let print = |char| {
+    //         loop {
+    //             print!("{}", char)
+    //         }
+    //     };
+
+    //     spawn_thread(|| print('a'));
+    //     spawn_thread(|| print('b'));
+    //     spawn_thread(|| print('c'));
+    //     spawn_thread(|| print('d'));
+    // });
 
     // Enable interrupts so that task scheduler starts
     enable_interrupts();

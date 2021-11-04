@@ -30,6 +30,7 @@ futures-util = {version = "0.3", default-features = false, features = ["alloc"]}
 run-command = [
     "qemu-system-x86_64", 
     "-drive", "format=raw,file={},if=ide",
+#    "-drive", "format=raw,file=data.img,if=ide",
     "-net", "nic,model=pcnet"
 ]
 test-args = [

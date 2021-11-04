@@ -6,12 +6,7 @@ use alloc::{
     sync::Arc,
 };
 use spin::Mutex;
-use x86_64::{
-    instructions::{hlt, interrupts::enable_and_hlt},
-    software_interrupt,
-    structures::{idt::InterruptStackFrame, paging::OffsetPageTable},
-    VirtAddr,
-};
+use x86_64::{VirtAddr, instructions::{hlt, interrupts::enable_and_hlt}, software_interrupt, structures::{idt::{InterruptStackFrame, InterruptStackFrameValue}, paging::OffsetPageTable}};
 
 use crate::{
     assembly::registers::Registers, executor::task, memory::BootInfoFrameAllocator,
@@ -107,7 +102,11 @@ impl TaskManager {
         let task = self.tasks.get_mut(&task_id).unwrap();
 
         // Write the new tasks stack frame
-        stack_frame.as_mut().write(task.state_isf);
+
+        // TODO: Make this work again
+        // stack_frame.as_mut().write(task.state_isf);
+        // Bad solution
+        write_volatile(stack_frame.as_mut().extract_inner() as *mut InterruptStackFrameValue, task.state_isf.clone());
 
         // Write the new tasks CPU registers
         write_volatile(regs, task.state_reg.clone());
