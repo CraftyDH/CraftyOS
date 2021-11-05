@@ -1,7 +1,8 @@
 //* Use statements
-use super::colour::{Colour, ColourCode};
+use super::colour::{self, Colour, ColourCode};
 use super::{BUFFER_HEIGHT, BUFFER_WIDTH};
-use alloc::format;
+use alloc::vec::Vec;
+use alloc::{format, vec};
 use core::convert::TryInto;
 use core::fmt;
 // So we can implement a formater
@@ -44,8 +45,8 @@ impl Writer {
 
                 // If at beginning of line go up to previous line
                 if x == 0 {
-                    // If on the top line just stay at pos (0, 0)
-                    if y != 0 {
+                    // If on the top line just stay at pos (0, 1)
+                    if y > 1 {
                         y -= 1;
                         x = BUFFER_WIDTH
                     }
@@ -118,6 +119,56 @@ impl Writer {
         self.update_cursor();
     }
 
+    pub fn dump_screen(&mut self) -> Vec<u8> {
+        let mut screen: Vec<u8> = Vec::with_capacity(2048);
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let chr = self.buffer.chars[row][col].read();
+                screen.push(chr.ascii_character);
+                // screen[(row - 1) * BUFFER_HEIGHT * 4 + col] = ;
+            }
+        }
+        screen
+    }
+
+    pub fn write_screen(&mut self, mut screen: Vec<u8>) {
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                self.buffer.chars[row][col].write(ScreenChar {
+                    ascii_character: screen.pop().unwrap(),
+                    colour_code: self.colour_code,
+                });
+            }
+        }
+    }
+
+    pub fn write_first_line(&mut self, string: &str, colour: ColourCode) {
+        // Get current pos
+        let Pos { x, y } = self.pos;
+        // Get current colour
+        let _colour = self.colour_code;
+
+        // Set colour code to temp colour
+        self.colour_code = colour;
+        self.set_pos(0, 0);
+
+        // Write the string
+        for byte in string.bytes() {
+            self.write_byte(byte, false);
+        }
+        // Set cursor to end of statement
+        self.update_cursor();
+
+        // Fill the rest with spaces
+        for _ in 0..(BUFFER_WIDTH - string.len()) {
+            self.write_byte(b' ', false);
+        }
+        // Reset POS
+        self.set_pos(x, y);
+        // Restore colour code
+        self.colour_code = _colour;
+    }
+
     fn new_line(&mut self) {
         self.pos.y += 1;
         self.pos.x = 0;
@@ -147,9 +198,10 @@ impl Writer {
                 // The screen buffer uses 16 bits and with a 64 bit pointer.
                 // Because of this we can copy 4 characters at a time, at must account for that.
                 // 64 / 16 = 4
+                // Copy screen up ignoring first line
                 core::ptr::copy(
-                    (0xb8000 as *const u64).offset((BUFFER_WIDTH / 4).try_into().unwrap()),
-                    0xb8000 as *mut u64,
+                    (0xb8000 as *const u64).offset((BUFFER_WIDTH / 4 * 2).try_into().unwrap()),
+                    (0xb8000 as *mut u64).offset((BUFFER_WIDTH / 4).try_into().unwrap()),
                     (BUFFER_HEIGHT) * (BUFFER_WIDTH) / 4,
                 );
             }
@@ -164,7 +216,7 @@ impl Writer {
 
     /// Fills screen with spaces with colour of self.colour
     pub fn fill_screen(&mut self) {
-        for row in 0..BUFFER_HEIGHT {
+        for row in 1..BUFFER_HEIGHT {
             self.fill_row(row);
         }
     }
@@ -185,7 +237,12 @@ impl Writer {
     }
 
     pub fn set_pos(&mut self, x: usize, y: usize) {
-        self.pos = Pos { x, y }
+        self.pos = Pos { x, y };
+        self.update_cursor();
+    }
+
+    pub fn get_pos(&mut self) -> (usize, usize) {
+        (self.pos.x, self.pos.y)
     }
 
     pub fn flip_bit(&mut self, x: usize, y: usize) {
@@ -210,12 +267,14 @@ impl fmt::Write for Writer {
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = {
         let mut writer = Writer {
-            pos: Pos { x: 0, y: 0 },
+            pos: Pos { x: 0, y: 1 },
             colour_code: ColourCode::new(Colour::White, Colour::Black),
             buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
             flipped: Pos { x: 0, y: 0 }
         };
 
+        // First row is special and as such is independant from fill screen
+        writer.fill_row(0);
         writer.fill_screen();
 
         // Init the entire buffer with default colour and spaces
@@ -223,6 +282,6 @@ lazy_static! {
         //     writer.new_line()
         // }
 
-        Mutex::new( writer)
+        Mutex::new(writer)
     };
 }

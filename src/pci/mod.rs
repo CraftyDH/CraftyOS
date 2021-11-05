@@ -1,5 +1,6 @@
 use core::convert::TryInto;
 
+use spin::Mutex;
 use x86_64::instructions::port::Port;
 
 use crate::executor::spawner::Spawner;
@@ -276,4 +277,12 @@ impl PCI {
             }
         }
     }
+}
+
+lazy_static! {
+    static ref PCI_CONTROLLER: Mutex<PCI> = Mutex::new(PCI::new());
+}
+
+pub fn get_pci_devices() {
+    PCI_CONTROLLER.lock().select_drivers();
 }

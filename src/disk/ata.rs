@@ -293,8 +293,6 @@ impl ATA {
                 return;
             }
 
-            println!("Reading from ATA: ");
-
             // It is now ready
             for _ in (0..count).step_by(2) {
                 let wdata = self.data.read();
@@ -346,7 +344,7 @@ impl ATA {
             // Command for write
             self.command.write(0x30);
 
-            println!("Writing to ATA: ");
+            // println!("Writing to ATA: ");
 
             // It is now ready
             for i in (0..count).step_by(2) {
@@ -355,11 +353,11 @@ impl ATA {
                     wdata |= (data[i as usize + 1] as u16) << 8;
                 }
 
-                print!(
-                    "{}{}",
-                    (wdata & 0x00FF) as u8 as char,
-                    ((wdata >> 8) & 0x00FF) as u8 as char
-                );
+                // print!(
+                //     "{}{}",
+                //     (wdata & 0x00FF) as u8 as char,
+                //     ((wdata >> 8) & 0x00FF) as u8 as char
+                // );
                 self.data.write(wdata);
             }
 
@@ -381,7 +379,7 @@ impl ATA {
             // Command for flush
             self.command.write(0xE7);
 
-            println!("Flushing ATA");
+            // println!("Flushing ATA");
             let mut status = self.command.read();
             if status == 0x00 {
                 return;

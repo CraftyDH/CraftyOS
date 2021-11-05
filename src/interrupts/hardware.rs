@@ -76,8 +76,9 @@ extern "C" fn timer_handler(stack_frame: &mut InterruptStackFrame, regs: &mut Re
     }
 }
 
-extern "x86-interrupt" fn ata_master_0_handler(stack_frame: InterruptStackFrame) {
-    println!("ATA Master 0: {:?}", stack_frame);
+extern "x86-interrupt" fn ata_master_0_handler(_stack_frame: InterruptStackFrame) {
+    // These are just annoying
+    // println!("ATA Master 0: {:?}", stack_frame);
 
     // Tell the PICS that we have handled the interrupt
     unsafe {
@@ -86,8 +87,9 @@ extern "x86-interrupt" fn ata_master_0_handler(stack_frame: InterruptStackFrame)
     }
 }
 
-extern "x86-interrupt" fn ata_slave_0_handler(stack_frame: InterruptStackFrame) {
-    println!("ATA Slave 0: {:?}", stack_frame);
+extern "x86-interrupt" fn ata_slave_0_handler(_stack_frame: InterruptStackFrame) {
+    // These are just annoying
+    // println!("ATA Slave 0: {:?}", stack_frame);
 
     // Tell the PICS that we have handled the interrupt
     unsafe {

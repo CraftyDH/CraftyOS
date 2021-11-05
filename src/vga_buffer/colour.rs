@@ -29,6 +29,13 @@ impl ColourCode {
     pub fn from_fg(foreground: Colour) -> ColourCode {
         ColourCode::new(foreground, Colour::Black)
     }
+
+    pub fn from_u8(foreground: u8, background: u8) -> ColourCode {
+        assert!(foreground <= 15);
+        assert!(background <= 15);
+        ColourCode(background << 4 | foreground)
+    }
+
     pub fn new(foreground: Colour, background: Colour) -> ColourCode {
         // The first 4 bits are background and the last 4 are foreground
         ColourCode((background as u8) << 4 | (foreground as u8))
