@@ -11,6 +11,7 @@ pub enum BaseAddressRegisterType {
     InputOutput = 1,
 }
 
+#[allow(dead_code)]
 pub struct BaseAddressRegister {
     prefetchable: bool,
     address: u8,
@@ -18,6 +19,7 @@ pub struct BaseAddressRegister {
     register_type: BaseAddressRegisterType,
 }
 
+#[allow(dead_code)]
 pub struct PCIDevice {
     port_base: u32,
     interrupt: u32,
@@ -139,7 +141,7 @@ impl PCI {
         }
     }
 
-    pub fn get_driver(&mut self, dev: &mut PCIDevice, spawner: Spawner) -> u8 {
+    pub fn get_device_name(&mut self, dev: &mut PCIDevice) -> u8 {
         match dev.vendor_id {
             // AMD
             0x1022 => {
@@ -168,15 +170,15 @@ impl PCI {
                 match dev.subclass_id {
                     // VGA
                     0x00 => {
-                        println!("Device: VGA");
+                        println!("Class: VGA");
                     }
                     _ => {
-                        println!("Other Graphics");
+                        println!("Class: Other Graphics");
                     }
                 }
             }
             _ => {
-                println!("Device: Unknown");
+                println!("Class: Unknown");
             }
         };
         0
@@ -254,10 +256,9 @@ impl PCI {
                         if bar.address != 0
                             && (bar.register_type == BaseAddressRegisterType::InputOutput)
                         {
-                            dev.port_base = bar.address.into()
+                            dev.port_base = bar.address.into();
                         }
 
-                        // let driver = self.get_driver(&mut dev, spawner.clone());
                         // if driver != 0 {
                         //     // Add driver
                         // }
@@ -273,6 +274,7 @@ impl PCI {
                         (dev.device_id & 0xFF00) >> 8,
                         dev.device_id & 0xFF
                     );
+                    self.get_device_name(&mut dev);
                 }
             }
         }

@@ -79,7 +79,7 @@ fn bootstrap(boot_info: &'static BootInfo) -> ! {
     });
 
     // Read the PCI devices
-    // spawn_thread(|| get_pci_devices());
+    spawn_thread(|| get_pci_devices());
 
     // Perform the ATA disk check
     spawn_thread(|| ata_identify());

@@ -29,8 +29,10 @@ futures-util = {version = "0.3", default-features = false, features = ["alloc"]}
 [package.metadata.bootimage]
 run-command = [
     "qemu-system-x86_64", 
-    "-drive", "format=raw,file={},if=ide",
-#    "-drive", "format=raw,file=data.img,if=ide",
+    "-drive", "format=raw,file={},if=ide",       # ATA 0 Master (Disk 0)
+#    "-drive", "format=raw,file=disk1.img,if=ide", # ATA 0 Slave  (Disk 1)
+#    "-drive", "format=raw,file=disk2.img,if=ide", # ATA 1 Master (Disk 2)
+#    "-drive", "format=raw,file=disk3.img,if=ide", # ATA 1 Slave  (Disk 3)
     "-net", "nic,model=pcnet"
 ]
 test-args = [
